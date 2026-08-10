@@ -1,0 +1,1682 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GoodStock Image Viewer</title>
+<style>
+:root{
+  --bg:oklch(99% .002 240); --surface:oklch(100% 0 0); --fg:oklch(18% .012 250);
+  --muted:oklch(50% .014 250); --border:oklch(92% .005 250); --accent:oklch(58% .18 255);
+  --surface-2:oklch(96.5% .004 240); --surface-3:oklch(94% .006 245);
+  --fg-2:oklch(36% .012 250); --border-strong:oklch(86% .006 245);
+  --danger:oklch(54% .19 25); --success:oklch(53% .15 155); --warn:oklch(60% .13 70);
+  --check1:oklch(94% 0 0); --check2:oklch(98% 0 0);
+  --shadow:0 12px 32px oklch(15% .02 250/.14),0 2px 8px oklch(15% .02 250/.08);
+  --font-display:'Segoe UI Variable Display','Segoe UI',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-body:'Segoe UI Variable','Segoe UI',-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --font-mono:'Cascadia Code','JetBrains Mono',Consolas,ui-monospace,monospace;
+  --thumb:150px;
+}
+[data-theme="dark"]{
+  --bg:oklch(20% .01 250); --surface:oklch(23.5% .011 250); --fg:oklch(93% .006 250);
+  --muted:oklch(67% .014 250); --border:oklch(31% .014 250); --accent:oklch(68% .16 255);
+  --surface-2:oklch(26.5% .013 250); --surface-3:oklch(29% .014 250);
+  --fg-2:oklch(82% .008 250); --border-strong:oklch(38% .016 250);
+  --danger:oklch(64% .17 25); --success:oklch(64% .15 155); --warn:oklch(70% .13 70);
+  --check1:oklch(22% 0 0); --check2:oklch(26% 0 0);
+  --shadow:0 16px 40px oklch(0% 0 0/.5),0 2px 8px oklch(0% 0 0/.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--font-body);font-size:13px;color:var(--fg);background:var(--bg);overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select{font-family:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:6px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:content-box;border:2px solid transparent}
+::-webkit-scrollbar-track{background:transparent}
+
+#app{display:flex;flex-direction:column;height:100%;min-height:0}
+/* ---------- title bar ---------- */
+#titlebar{flex:0 0 38px;display:flex;align-items:center;justify-content:space-between;padding-left:12px;
+  background:color-mix(in oklab,var(--bg) 78%,transparent);backdrop-filter:blur(18px) saturate(1.4);
+  border-bottom:1px solid var(--border);-webkit-user-select:none;user-select:none}
+.tb-left{display:flex;align-items:center;gap:10px}
+.app-logo{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent),oklch(52% .2 285));color:#fff;
+  display:grid;place-items:center;font-weight:650;font-size:11px;box-shadow:0 1px 2px oklch(0% 0 0/.2)}
+.tb-title{font-weight:600;font-size:12.5px;letter-spacing:-.01em}
+.tb-sub{font-size:11px;color:var(--muted);padding:2px 7px;border:1px solid var(--border);border-radius:20px}
+.tb-right{display:flex;height:100%}
+.win-btn{width:46px;height:100%;display:grid;place-items:center;color:var(--fg-2)}
+.win-btn:hover{background:var(--surface-3)}
+.win-btn[data-tip]{position:relative}
+.win-btn[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--fg);color:var(--bg);font-size:11px;padding:4px 8px;border-radius:6px;white-space:nowrap;z-index:90;pointer-events:none}
+.win-btn.close:hover{background:var(--danger);color:#fff}
+/* ---------- menu bar ---------- */
+#menubar{flex:0 0 32px;display:flex;align-items:center;gap:2px;padding:0 8px;
+  background:color-mix(in oklab,var(--bg) 70%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);
+  -webkit-user-select:none;user-select:none;position:relative;z-index:40}
+.menu-btn{padding:5px 11px;border-radius:6px;font-size:12.5px;color:var(--fg-2)}
+.menu-btn:hover{background:var(--surface-2)}
+.menu-btn.open{background:var(--surface-3);color:var(--fg)}
+.menu-right{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+.menu-panel{position:absolute;top:calc(100% - 4px);left:0;min-width:252px;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;box-shadow:var(--shadow);padding:6px;display:none;z-index:80}
+.menu-panel.show{display:block}
+.menu-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:6px;font-size:12.5px;cursor:pointer}
+.menu-item svg{width:15px;height:15px;color:var(--fg-2);flex:0 0 auto;opacity:.85}
+.menu-item:hover{background:var(--surface-2)}
+.menu-item:active{background:var(--surface-3);transform:translateY(1px)}
+.menu-item:hover svg{color:var(--fg);opacity:1}
+.menu-item .mi-label{flex:1}
+.menu-item .mi-kbd{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.menu-item.sep{margin:5px 0;border-top:1px solid var(--border);padding:0}
+/* ---------- toolbar ---------- */
+#toolbar{flex:0 0 46px;display:flex;align-items:center;gap:2px;padding:0 10px;background:var(--bg);border-bottom:1px solid var(--border);overflow:visible;scrollbar-width:thin}
+#toolbar::-webkit-scrollbar{height:5px}
+.tb-group{display:flex;align-items:center;gap:2px;padding:0 6px;border-right:1px solid var(--border)}
+.tb-group:last-of-type{border-right:none}
+.tool-btn{width:34px;height:34px;border-radius:7px;display:grid;place-items:center;color:var(--fg-2);position:relative}
+.tool-btn:hover{background:var(--surface-2);color:var(--fg)}
+.tool-btn:active{transform:translateY(1px)}
+.tool-btn.active{background:color-mix(in oklab,var(--accent) 12%,var(--surface));color:var(--accent)}
+.tool-btn svg{width:18px;height:18px}
+.tool-btn[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  background:var(--fg);color:var(--bg);font-size:11px;padding:4px 8px;border-radius:6px;white-space:nowrap;z-index:90;pointer-events:none}
+.tb-spacer{flex:1}
+.searchbox{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:0 10px;height:30px;width:210px;color:var(--muted)}
+.searchbox svg{width:14px;height:14px}
+.searchbox input{border:none;outline:none;background:none;width:100%;font-size:12.5px;color:var(--fg)}
+.searchbox:focus-within{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+/* ---------- main ---------- */
+#main{flex:1;display:grid;grid-template-columns:var(--folders-w,224px) 1fr;min-height:0;position:relative}
+#main.has-preview{grid-template-columns:var(--folders-w,224px) 1fr var(--preview-w,296px)}
+#folders{border-right:1px solid var(--border);background:var(--bg);overflow:auto;padding:8px;min-height:0;position:relative}
+#preview{position:relative}
+.rp-grip{position:absolute;top:0;bottom:0;width:9px;z-index:40;cursor:col-resize;font-size:0;line-height:0}
+.rp-grip::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:2px;height:34px;border-radius:2px;background:transparent;transition:background .15s}
+.rp-grip:hover::after,.rp-grip:active::after{background:var(--accent)}
+#rp-grip-f{left:calc(var(--folders-w,224px) - 4px);width:14px;z-index:44}
+#rp-grip-p{left:-3px}
+.panel-title{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:6px 8px 8px;display:flex;align-items:center;gap:6px}
+.panel-title .pt-icon{width:13px;height:13px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center}
+.panel-title .pt-icon svg{width:13px;height:13px;color:var(--fg-2)}
+.folder-node{padding:5px 8px;border-radius:7px;display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--fg-2);font-size:12.5px}
+.folder-node:hover{background:var(--surface-2);color:var(--fg)}
+.folder-node:active{background:var(--surface-3)}
+.folder-node.sel{background:color-mix(in oklab,var(--accent) 12%,var(--surface));color:var(--fg)}
+.folder-node.sel .fn-name{color:var(--fg);font-weight:550}
+.folder-node svg{width:15px;height:15px;flex:0 0 auto}
+.folder-node .chev{width:12px;height:12px;color:var(--muted)}
+.folder-node .fn-count{margin-left:auto;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.folder-children{padding-left:20px}
+.folder-children.hide{display:none}
+/* thumbnails */
+#thumbs{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--bg)}
+#crumbbar{flex:0 0 40px;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--border);color:var(--fg-2);overflow:hidden}
+.crumb{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;padding:4px 8px;border-radius:6px}
+.crumb:hover{background:var(--surface-2)}
+.crumb:active{background:var(--surface-3)}
+.crumb svg{width:14px;height:14px;color:var(--muted)}
+.crumb.cur{font-weight:600;color:var(--fg);cursor:default}
+.crumb.cur:hover{background:none}
+.crumb-sep{color:var(--muted);font-size:11px}
+#thumbs-head{flex:0 0 40px;display:flex;align-items:center;gap:10px;padding:0 12px;border-bottom:1px solid var(--border)}
+.head-sep{width:1px;height:22px;background:var(--border);flex:0 0 auto}
+.head-label{font-size:12px;color:var(--muted)}
+.sort-select{border:1px solid var(--border);background:var(--surface);border-radius:6px;font-size:12px;padding:5px 8px;color:var(--fg-2);outline:none;cursor:pointer}
+.sort-select:hover{border-color:var(--border-strong)}
+#thumbs-grid{flex:1;overflow:auto;padding:14px 16px;display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(var(--thumb),1fr));align-content:start;min-height:0}
+.thumb{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;position:relative;transition:border-color .12s,box-shadow .12s,transform .06s}
+.thumb:hover{border-color:var(--border-strong);box-shadow:0 2px 8px oklch(15% .02 250/.08);transform:translateY(-1px)}
+.thumb.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 4px 14px color-mix(in oklab,var(--accent) 25%,transparent)}
+.thumb img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--surface-2)}
+.thumb-info{padding:8px 10px 7px}
+.thumb-name{font-size:11.5px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:550}
+.thumb-dims{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:1px}
+.thumb-tag{position:absolute;top:8px;right:8px;width:16px;height:16px;border-radius:50%;background:var(--accent);display:none;place-items:center}
+.thumb-tag.on{display:grid}
+.thumb-tag svg{width:10px;height:10px;color:#fff}
+.thumb-idx{position:absolute;top:8px;left:8px;font-size:10px;font-weight:650;color:#fff;background:oklch(0% 0 0/.45);padding:2px 6px;border-radius:10px;font-family:var(--font-mono);backdrop-filter:blur(4px)}
+.empty-state{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:10px;padding:70px 20px;color:var(--muted);font-size:12.5px;text-align:center}
+.empty-state svg{width:34px;height:34px;opacity:.5;color:var(--border-strong)}
+/* preview pane */
+#preview{background:var(--bg);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0;min-width:0}
+.pv-img{flex:0 0 auto;height:220px;display:grid;place-items:center;background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden}
+.pv-img img{max-width:calc(100% - 32px);max-height:calc(100% - 24px);object-fit:contain;border-radius:6px;box-shadow:0 2px 10px oklch(0% 0 0/.12)}
+.pv-body{flex:1;overflow:auto;padding:14px}
+.pv-name{font-weight:600;font-size:13px;word-break:break-all}
+.pv-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+.seg-row{display:flex;gap:2px;margin-top:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2px}
+.seg-btn{flex:1;padding:5px 6px;border-radius:6px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;text-align:center;transition:background .15s,color .15s}
+.seg-btn:hover{color:var(--fg-2)}
+.seg-btn.active{background:color-mix(in oklab,var(--accent) 14%,var(--surface));color:var(--accent)}
+.seg-btn.active:hover{color:var(--accent)}
+.pv-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:11.5px}
+.pv-table td{padding:5px 0;border-bottom:1px dashed var(--border);vertical-align:top}
+.pv-table td:first-child{color:var(--muted);width:44%;padding-right:8px}
+.pv-table td:last-child{font-variant-numeric:tabular-nums}
+.pv-note{margin-top:14px;font-size:11px;color:var(--muted);line-height:1.5;padding:8px 10px;background:var(--surface-2);border-radius:8px}
+/* thumbnail metadata popover */
+#meta-pop{position:absolute;z-index:160;min-width:280px;max-width:340px;display:none;background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+#meta-pop.show{display:block}
+.mp-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+.mp-head img{width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--border)}
+.mp-titles{min-width:0;flex:1}
+.mp-name{font-weight:650;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mp-sub{font-size:11px;color:var(--muted)}
+.mp-close{width:28px;height:28px;flex:0 0 auto;display:grid;place-items:center;border-radius:7px;color:var(--fg-2)}
+.mp-close:hover{background:var(--surface-3);color:var(--fg)}
+.mp-close svg{width:15px;height:15px}
+.mp-body{padding:10px 12px;max-height:300px;overflow:auto}
+.mp-row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:11.5px;border-bottom:1px dashed var(--border)}
+.mp-row:last-child{border-bottom:none}
+.mp-row .mp-k{color:var(--muted);flex:0 0 auto}
+.mp-row .mp-v{text-align:right;font-variant-numeric:tabular-nums;min-width:0;word-break:break-word}
+.mp-open{display:block;width:100%;margin:8px 0 2px;padding:7px 0;border-radius:8px;background:color-mix(in oklab,var(--accent) 10%,var(--surface));
+  color:var(--accent);font-size:11.5px;font-weight:600;text-align:center}
+.mp-open:hover{background:color-mix(in oklab,var(--accent) 18%,var(--surface))}
+.histo{margin-top:14px}
+.histo-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.histo-row{display:flex;gap:1px;height:34px;align-items:flex-end;margin-bottom:4px}
+.histo-row .hb{width:100%;border-radius:1px 1px 0 0}
+.h-r .hb{background:var(--danger)}
+.h-g .hb{background:var(--success)}
+.h-b .hb{background:var(--accent)}
+/* status bar */
+#statusbar{flex:0 0 26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:11.5px;color:var(--fg-2);
+  background:var(--bg);border-top:1px solid var(--border);-webkit-user-select:none;user-select:none;font-variant-numeric:tabular-nums}
+#sb-left{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-right{display:flex;gap:18px;color:var(--muted)}
+/* ---------- viewer ---------- */
+.overlay{position:absolute;inset:0;z-index:100;display:none}
+.overlay.show{display:block}
+#viewer{--vtop:46px;--vmenu:31px;--vtool:42px;background:var(--check1);grid-template-rows:var(--vtop) var(--vmenu) var(--vtool) 1fr 86px}
+#viewer.show{display:grid}
+[data-theme="dark"] #viewer{background:oklch(12% .006 250)}
+.v-top{display:flex;align-items:center;gap:2px;padding:0 10px;background:color-mix(in oklab,var(--bg) 82%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);-webkit-user-select:none;user-select:none;position:relative;z-index:6}
+.v-filename{font-weight:600;font-size:13px;letter-spacing:-.01em}
+.v-filename small{color:var(--muted);font-weight:400;margin-left:8px;font-size:11px}
+.v-stage{position:relative;overflow:hidden;min-height:0}
+.v-menubar{display:flex;align-items:center;gap:2px;padding:0 10px;background:color-mix(in oklab,var(--bg) 82%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);-webkit-user-select:none;user-select:none;position:relative}
+.v-menu-spacer{flex:1}
+.v-toolbar{display:flex;align-items:center;gap:2px;padding:0 10px;background:color-mix(in oklab,var(--bg) 82%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);overflow:visible;position:relative;z-index:5}
+.checker{background-image:linear-gradient(45deg,var(--check1) 25%,transparent 25%),linear-gradient(-45deg,var(--check1) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,var(--check1) 75%),linear-gradient(-45deg,transparent 75%,var(--check1) 75%);
+  background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0;background-color:var(--check2)}
+.v-image-wrap{position:absolute;inset:0;display:grid;place-items:center}
+.v-image{max-width:calc(100% - 60px);max-height:calc(100% - 60px);object-fit:contain;box-shadow:0 6px 30px oklch(0% 0 0/.35);border-radius:4px;transform-origin:center;transition:transform .18s cubic-bezier(.2,.8,.3,1);cursor:grab;background:var(--surface)}
+.v-image.pan{cursor:grabbing}
+.v-lens{position:absolute;width:170px;height:170px;border-radius:50%;pointer-events:none;border:2px solid #fff;box-shadow:0 4px 18px oklch(0% 0 0/.5),inset 0 0 0 1px oklch(0% 0 0/.25);background-repeat:no-repeat;display:none;z-index:20}
+.v-bottom{display:flex;align-items:center;gap:4px;padding:0 12px;background:color-mix(in oklab,var(--bg) 82%,transparent);backdrop-filter:blur(14px);border-top:1px solid var(--border);-webkit-user-select:none;user-select:none;position:relative}
+.v-nav{display:flex;gap:2px;margin-right:10px}
+.v-zoom{font-size:11.5px;color:var(--muted);font-family:var(--font-mono);width:52px;text-align:center;font-variant-numeric:tabular-nums}
+.v-slider{flex:1;max-width:220px;margin:0 10px}
+.filmstrip{display:flex;gap:8px;overflow:auto;padding:8px 4px;margin-left:auto;max-width:52%;-webkit-user-select:none;user-select:none}
+.film-item{flex:0 0 auto;width:58px;border-radius:6px;overflow:hidden;border:2px solid transparent;cursor:pointer;opacity:.75;background:var(--surface)}
+.film-item img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+.film-item:hover{opacity:1}
+.film-item.cur{border-color:var(--accent);opacity:1}
+.v-info{position:absolute;top:calc(var(--vtop) + var(--vmenu) + var(--vtool));right:0;bottom:86px;width:300px;background:color-mix(in oklab,var(--bg) 88%,transparent);backdrop-filter:blur(16px);border-left:1px solid var(--border);padding:16px;overflow:auto;display:none;z-index:30}
+.v-info.show{display:block}
+.v-info h4{font-size:12px;margin-bottom:10px;color:var(--fg-2);font-weight:600}
+/* ---------- boards & dialogs ---------- */
+.board{position:absolute;inset:0;z-index:110;display:none;flex-direction:column;background:var(--bg)}
+.board.show{display:flex}
+.board-top{flex:0 0 48px;display:flex;align-items:center;gap:4px;padding:0 10px;border-bottom:1px solid var(--border);background:var(--bg)}
+.board-title{font-weight:600;font-size:13px;margin-right:8px;letter-spacing:-.01em}
+.board-stage{flex:1;position:relative;overflow:hidden;min-height:0}
+.board-tools{flex:0 0 48px;display:flex;align-items:center;gap:2px;padding:0 10px;border-top:1px solid var(--border);background:var(--bg)}
+.btn{padding:7px 14px;border-radius:7px;font-size:12.5px;font-weight:600;color:var(--fg-2);border:1px solid var(--border);background:var(--surface);display:inline-flex;align-items:center;gap:7px}
+.btn:hover{background:var(--surface-2)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:oklch(54% .2 255)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--fg-2)}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn svg{width:15px;height:15px}
+.btn.danger{color:var(--danger);border-color:color-mix(in oklab,var(--danger) 30%,transparent)}
+.btn.danger:hover{background:color-mix(in oklab,var(--danger) 8%,var(--surface))}
+#crop-rect{position:absolute;border:1.5px solid var(--accent);cursor:move;touch-action:none;background:oklch(0% 0 0/.06);box-shadow:0 0 0 1px oklch(0% 0 0/.2)}
+#crop-rect::after{content:"";position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;border-radius:3px;background:var(--accent);cursor:nwse-resize}
+.dialog-title svg{margin-left:auto;cursor:pointer;color:var(--muted)}
+.chip{padding:6px 12px;border-radius:20px;font-size:12px;color:var(--fg-2);border:1px solid var(--border);background:var(--surface)}
+.chip:hover{background:var(--surface-2)}
+.chip:active{transform:translateY(1px)}
+.chip.sel{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:550}
+.swatch{width:22px;height:22px;border-radius:6px;border:2px solid transparent;cursor:pointer;position:relative}
+.swatch.sel{border-color:var(--fg);box-shadow:0 0 0 1px var(--surface)}
+.swatch-row{display:flex;gap:6px;align-items:center;padding:0 8px;border-right:1px solid var(--border)}
+.modal{position:absolute;inset:0;z-index:120;display:none;place-items:center;background:oklch(0% 0 0/.35);backdrop-filter:blur(3px)}
+.modal.show{display:grid}
+.dialog{width:560px;max-width:calc(100vw - 48px);max-height:calc(100vh - 60px);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.dialog-title{display:flex;align-items:center;gap:10px;padding:16px 20px 12px;font-size:14px;font-weight:600;letter-spacing:-.01em}
+.dialog-title .close-x{margin-left:auto}
+.dialog-body{padding:0 20px 16px;overflow:auto;min-height:0}
+.dialog-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 20px;border-top:1px solid var(--border);background:var(--bg)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:6px;font-weight:550}
+.select{border:1px solid var(--border);background:var(--surface);border-radius:7px;font-size:12.5px;padding:7px 10px;width:100%;outline:none;color:var(--fg);cursor:pointer}
+.select:hover{border-color:var(--border-strong)}
+.text-input{border:1px solid var(--border);background:var(--surface);border-radius:7px;font-size:12.5px;padding:7px 10px;width:100%;outline:none;color:var(--fg)}
+.text-input:focus{border-color:var(--accent)}
+.slider{-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:var(--border-strong);outline:none;cursor:pointer}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;background:var(--surface);border:2px solid var(--accent);cursor:pointer;box-shadow:0 1px 3px oklch(0% 0 0/.25)}
+.slider::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--surface);border:2px solid var(--accent)}
+.row-flex{display:flex;gap:10px;align-items:flex-end}
+.row-flex .field{flex:1}
+.checkrow{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--fg-2);cursor:pointer}
+.checkrow input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+.stock-check{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px}
+.stock-item{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);min-width:0}
+.stock-item.ok{color:var(--fg-2)}
+.stock-item .dot{width:7px;height:7px;border-radius:50%;background:var(--border-strong);flex:none}
+.stock-item.ok .dot{background:var(--ok,#3fb950)}
+.stock-item .cnt{font-weight:700;color:var(--fg);font-variant-numeric:tabular-nums}
+.stock-sum{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);margin-top:12px}
+.stock-sum b{color:var(--fg)}
+.stock-sum .tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--border)}
+.stock-sum .tag.ready{background:color-mix(in oklab,var(--ok,#3fb950) 14%,var(--surface));color:var(--ok,#3fb950);border-color:color-mix(in oklab,var(--ok,#3fb950) 35%,transparent)}
+.stock-hint{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+.file-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;font-size:12px}
+.file-row:hover{background:var(--surface-2)}
+.file-row.checked{background:color-mix(in oklab,var(--accent) 7%,var(--surface))}
+.file-row .f-icon{color:var(--muted);display:grid;place-items:center}
+.file-row .f-icon svg{width:14px;height:14px}
+.file-row .f-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-row .f-size{color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.file-row input{accent-color:var(--accent);cursor:pointer}
+.progress{height:8px;border-radius:4px;background:var(--surface-3);overflow:hidden;margin-top:8px}
+.progress .bar{height:100%;width:0;background:var(--accent);border-radius:4px;transition:width .15s}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.compare .cbox{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.compare .cbox img{width:100%;height:150px;object-fit:cover;display:block}
+.compare .cbox .cap{padding:6px 10px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between}
+.radio-row{display:flex;gap:6px;flex-wrap:wrap}
+/* settings */
+#settings-panel{position:absolute;top:118px;right:16px;width:330px;max-height:calc(100vh - 140px);overflow:auto;z-index:95;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:18px;display:none}
+#settings-panel.show{display:block}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.settings-row:last-child{border-bottom:none}
+.settings-label{font-size:12.5px;color:var(--fg-2)}
+.settings-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.switch{position:relative;width:38px;height:20px;background:var(--border-strong);border-radius:20px;cursor:pointer;transition:background .15s;flex:0 0 auto;-webkit-appearance:none;appearance:none;padding:0;display:block}
+.switch.on{background:var(--accent)}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px oklch(0% 0 0/.3)}
+.switch.on::after{left:20px}
+/* toast */
+#toast{position:absolute;bottom:44px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:oklch(14% .012 250/.92);color:oklch(96% .004 250);padding:10px 18px;border-radius:10px;font-size:12.5px;box-shadow:var(--shadow);
+  backdrop-filter:blur(8px);animation:toast-in .2s ease;display:flex;align-items:center;gap:8px}
+.toast svg{width:15px;height:15px;color:var(--success)}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* slideshow */
+#slideshow{position:absolute;inset:0;z-index:190;background:oklch(8% .004 250);display:none;overflow:hidden}
+#slideshow.show{display:block}
+.ss-stage{position:absolute;inset:0;display:grid;place-items:center}
+.ss-stage img{position:absolute;max-width:100%;max-height:100%;object-fit:contain;opacity:0;transition:opacity .6s ease}
+.ss-stage img.ss-cur{opacity:1}
+.ss-bar{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(transparent,oklch(0% 0 0/.6));color:#fff;font-size:12.5px}
+.ss-bar .v-slider{flex:1;max-width:none}
+.ss-pos{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:oklch(85% 0 0/.9)}
+.ss-btn{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;background:oklch(100% 0 0/.12)}
+.ss-btn[data-tip]{position:relative}
+.ss-btn[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:#fff;color:#000;font-size:11px;padding:4px 8px;border-radius:6px;white-space:nowrap;z-index:90;pointer-events:none}
+.ss-btn:hover{background:oklch(100% 0 0/.25)}
+.ss-btn svg{width:17px;height:17px}
+/* context menu */
+#ctxmenu{position:absolute;z-index:210;min-width:190px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:5px;display:none}
+#ctxmenu.show{display:block}
+/* popover for text tool */
+#text-overlay{position:absolute;z-index:130;display:none}
+#text-overlay input{font-family:inherit;font-size:14px;padding:4px 8px;border:1.5px solid var(--accent);border-radius:6px;outline:none;background:var(--surface);color:var(--fg);min-width:140px}
+@media (max-width:1080px){
+  #main{grid-template-columns:1fr}
+  #folders,#preview{display:none}
+  #rp-grip-f,#rp-grip-p{display:none}
+  #main.has-preview{grid-template-columns:1fr}
+  .filmstrip{max-width:30%}
+}
+@media (max-width:880px){
+  #toolbar{overflow-x:auto;overflow-y:hidden}
+  #toolbar .tool-btn[data-tip]::after{display:none}
+  .searchbox{width:36px;padding:0;justify-content:center;border-color:transparent}
+  .searchbox input{display:none}
+  .tb-sub{display:none}
+  #thumbs-head{flex-wrap:wrap;height:auto;min-height:40px;row-gap:8px;padding-bottom:6px}
+}
+</style>
+</head>
+<body data-od-id="app-root">
+<div id="app">
+  <div id="titlebar" data-od-id="titlebar">
+    <div class="tb-left">
+      <div class="app-logo">GS</div>
+      <span class="tb-title">GoodStock Image Viewer</span>
+      <span class="tb-sub">เสถียรเวอร์ชัน 8.5 · Windows 11</span>
+    </div>
+    <div class="tb-right">
+      <button class="win-btn" id="win-min" data-tip="ย่อเล็กสุด" aria-label="Minimize"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+      <button class="win-btn" id="win-max" data-tip="ขยาย" aria-label="Maximize"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></button>
+      <button class="win-btn close" id="win-close" data-tip="ปิด" aria-label="Close"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </div>
+  </div>
+
+  <div id="menubar" data-od-id="menubar">
+    <button class="menu-btn" data-menu="m-file">ไฟล์</button>
+    <button class="menu-btn" data-menu="m-edit">แก้ไข</button>
+    <button class="menu-btn" data-menu="m-view">มุมมอง</button>
+    <button class="menu-btn" data-menu="m-tools">เครื่องมือ</button>
+    <button class="menu-btn" data-menu="m-tag">แท็ก</button>
+    <button class="menu-btn" data-menu="m-create">สร้าง</button>
+    <button class="menu-btn" data-menu="m-fav">รายการโปรด</button>
+    <button class="menu-btn" data-menu="m-settings">การตั้งค่า</button>
+    <button class="menu-btn" data-menu="m-help">วิธีใช้</button>
+
+    <div class="menu-panel" id="m-file" data-od-id="menu-file">
+      <div class="menu-item" data-act="open">${I.open}<span class="mi-label">เปิดไฟล์…</span><span class="mi-kbd">Ctrl+O</span></div>
+      <div class="menu-item" data-act="viewer">${I.eye}<span class="mi-label">เปิดในตัวแสดงภาพ</span><span class="mi-kbd">Enter</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="saveas">${I.save}<span class="mi-label">บันทึกเป็น…</span><span class="mi-kbd">Ctrl+S</span></div>
+      <div class="menu-item" data-act="convert">${I.convert}<span class="mi-label">แปลงเป็นชุด…</span><span class="mi-kbd">Ctrl+Shift+B</span></div>
+      <div class="menu-item" data-act="print">${I.print}<span class="mi-label">พิมพ์…</span><span class="mi-kbd">Ctrl+P</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="close">${I.x}<span class="mi-label">ปิด</span></div>
+    </div>
+    <div class="menu-panel" id="m-edit">
+      <div class="menu-item" data-act="crop">${I.crop}<span class="mi-label">ครอบตัด…</span><span class="mi-kbd">X</span></div>
+      <div class="menu-item" data-act="draw">${I.pen}<span class="mi-label">กระดานวาด…</span><span class="mi-kbd">D</span></div>
+      <div class="menu-item" data-act="rotate-cw">${I.rotate}<span class="mi-label">หมุนขวา 90°</span><span class="mi-kbd">Ctrl+R</span></div>
+      <div class="menu-item" data-act="rotate-ccw">${I.rotateCcw}<span class="mi-label">หมุนซ้าย 90°</span><span class="mi-kbd">Ctrl+L</span></div>
+      <div class="menu-item" data-act="rotate-180">${I.rotate}<span class="mi-label">หมุน 180°</span><span class="mi-kbd">Ctrl+I</span></div>
+      <div class="menu-item" data-act="flip-h">${I.fliph}<span class="mi-label">พลิกแนวนอน</span><span class="mi-kbd">Ctrl+H</span></div>
+      <div class="menu-item" data-act="flip-v">${I.flipv}<span class="mi-label">พลิกแนวตั้ง</span><span class="mi-kbd">Ctrl+J</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="toast-empty">${I.sliders}<span class="mi-label">ปรับแสง / สี / Curve…</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.wand}<span class="mi-label">ลบตาแดง…</span></div>
+    </div>
+    <div class="menu-panel" id="m-view">
+      <div class="menu-item" data-act="toggle-preview">${I.panel}<span class="mi-label">แผงตัวอย่าง</span><span class="mi-kbd">F8</span></div>
+      <div class="menu-item" data-act="slideshow">${I.play}<span class="mi-label">สไลด์โชว์</span><span class="mi-kbd">F</span></div>
+      <div class="menu-item" data-act="fullview">${I.fit}<span class="mi-label">โหมดเต็มจอ</span><span class="mi-kbd">F11</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="settings">${I.gear}<span class="mi-label">การตั้งค่า…</span><span class="mi-kbd">F12</span></div>
+    </div>
+    <div class="menu-panel" id="m-tools">
+      <div class="menu-item" data-act="convert">${I.convert}<span class="mi-label">แปลง / เปลี่ยนชื่อเป็นชุด…</span></div>
+      <div class="menu-item" data-act="compare">${I.compare}<span class="mi-label">เปรียบเทียบภาพ…</span><span class="mi-kbd">C</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.monitor}<span class="mi-label">จับภาพหน้าจอ</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.layers}<span class="mi-label">ติดต่อภาพ…</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.image}<span class="mi-label">สร้างวอลเปเปอร์…</span></div>
+    </div>
+    <div class="menu-panel" id="m-tag">
+      <div class="menu-item" data-act="tag">${I.tag}<span class="mi-label">ติดแท็ก / ยกเลิกแท็ก</span><span class="mi-kbd">Q</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.filter}<span class="mi-label">กรองเฉพาะไฟล์ที่แท็ก</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.xcircle}<span class="mi-label">รีเซ็ตแท็ก</span></div>
+    </div>
+    <div class="menu-panel" id="m-create">
+      <div class="menu-item" data-act="toast-empty">${I.mail}<span class="mi-label">สร้างอีเมลรูปภาพ…</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.filetext}<span class="mi-label">สร้าง PDF หลายหน้า…</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.layers}<span class="mi-label">สร้างแผ่นติดต่อ…</span></div>
+    </div>
+    <div class="menu-panel" id="m-fav">
+      <div class="menu-item" data-act="toast-empty">${I.folder}<span class="mi-label">เพิ่มโฟลเดอร์นี้เป็นรายการโปรด</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.star}<span class="mi-label">Trip 2026</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.star}<span class="mi-label">พอร์ตเทรต</span></div>
+    </div>
+    <div class="menu-panel" id="m-settings">
+      <div class="menu-item" data-act="settings">${I.gear}<span class="mi-label">การตั้งค่าโปรแกรม…</span><span class="mi-kbd">F12</span></div>
+      <div class="menu-item" data-act="theme">${I.theme}<span class="mi-label">สลับธีมสว่าง / มืด</span></div>
+    </div>
+    <div class="menu-panel" id="m-help">
+      <div class="menu-item" data-act="toast-empty">${I.help}<span class="mi-label">วิธีใช้ (ตัวอย่าง)</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.info}<span class="mi-label">เกี่ยวกับ Image Viewer</span></div>
+    </div>
+  </div>
+
+  <div id="toolbar" data-od-id="toolbar">
+    <div class="tb-group">
+      <button class="tool-btn" id="tb-open" data-tip="เปิดไฟล์" data-od-id="tb-open">${I.open}</button>
+      <button class="tool-btn" id="tb-saveas" data-tip="บันทึกเป็น" data-od-id="tb-saveas">${I.save}</button>
+      <button class="tool-btn" id="tb-print" data-tip="พิมพ์" data-od-id="tb-print">${I.print}</button>
+      <button class="tool-btn" id="tb-email" data-tip="ส่งอีเมล" data-od-id="tb-email">${I.mail}</button>
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="tb-copy" data-tip="คัดลอกไปยังโฟลเดอร์" data-od-id="tb-copy">${I.copy}</button>
+      <button class="tool-btn" id="tb-move" data-tip="ย้ายไปยังโฟลเดอร์" data-od-id="tb-move">${I.move}</button>
+      <button class="tool-btn" id="tb-delete" data-tip="ลบไฟล์" data-od-id="tb-delete">${I.trash}</button>
+      <button class="tool-btn" id="tb-rename" data-tip="เปลี่ยนชื่อ" data-od-id="tb-rename">${I.rename}</button>
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="tb-rotate" data-tip="หมุนขวา 90°" data-od-id="tb-rotate">${I.rotate}</button>
+      <button class="tool-btn" id="tb-crop" data-tip="ครอบตัด (X)" data-od-id="tb-crop">${I.crop}</button>
+      <button class="tool-btn" id="tb-draw" data-tip="กระดานวาด (D)" data-od-id="tb-draw">${I.pen}</button>
+      <button class="tool-btn" id="tb-compare" data-tip="เปรียบเทียบภาพ" data-od-id="tb-compare">${I.compare}</button>
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="tb-convert" data-tip="แปลง / เปลี่ยนชื่อเป็นชุด" data-od-id="tb-convert">${I.convert}</button>
+      <button class="tool-btn" id="tb-slideshow" data-tip="สไลด์โชว์ (F)" data-od-id="tb-slideshow">${I.play}</button>
+      <button class="tool-btn" id="tb-capture" data-tip="จับภาพหน้าจอ" data-od-id="tb-capture">${I.camera}</button>
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="tb-prev" data-tip="กลับไปโฟลเดอร์ก่อนหน้า" data-od-id="tb-prev">${I.chevleft}</button>
+      <button class="tool-btn" id="tb-up" data-tip="ขึ้นไปหนึ่งระดับ" data-od-id="tb-up">${I.up}</button>
+      <button class="tool-btn" id="tb-refresh" data-tip="รีเฟรช" data-od-id="tb-refresh">${I.refresh}</button>
+    </div>
+    <div class="tb-spacer"></div>
+    <div class="searchbox" data-od-id="search-box">
+      ${I.search}
+      <input id="search-input" type="text" placeholder="ค้นหาไฟล์…" aria-label="ค้นหาไฟล์">
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="tb-preview-toggle" data-tip="แสดง/ซ่อนแผงตัวอย่าง (F8)" data-od-id="tb-preview-toggle">${I.panel}</button>
+      <button class="tool-btn" id="tb-settings" data-tip="การตั้งค่า (F12)" data-od-id="tb-settings">${I.gear}</button>
+      <button class="tool-btn" id="tb-theme" data-tip="สลับธีม" data-od-id="tb-theme">${I.theme}</button>
+    </div>
+  </div>
+
+  <div id="main" data-od-id="main" class="has-preview">
+    <aside id="folders" data-od-id="folders"></aside>
+    <div class="rp-grip" id="rp-grip-f" role="separator" aria-orientation="vertical" aria-label="ปรับขนาดแผงโฟลเดอร์"></div>
+    <section id="thumbs" data-od-id="thumbs">
+      <div id="crumbbar" data-od-id="crumbbar"></div>
+      <div id="thumbs-head" data-od-id="thumbs-head">
+        <span class="head-label">เรียงตาม</span>
+        <select class="sort-select" id="sort-select" data-od-id="sort-select" aria-label="เรียงตาม">
+          <option value="name">ชื่อ</option>
+          <option value="date">วันที่ถ่าย</option>
+          <option value="size">ขนาดไฟล์</option>
+          <option value="type">ชนิด</option>
+        </select>
+        <button class="tool-btn" id="sort-dir" data-tip="ทิศทางการเรียง" data-od-id="sort-dir" aria-label="ทิศทางการเรียง">${I.sortdir}</button>
+        <div class="head-sep"></div>
+        <button class="tool-btn" id="sel-all" data-tip="เลือกทั้งหมด (Ctrl+A)" aria-label="เลือกทั้งหมด">${I.selall}</button>
+        <button class="tool-btn" id="sel-type" data-tip="เลือกตามชนิด…" aria-label="เลือกตามชนิด">${I.seltype}</button>
+        <button class="tool-btn" id="sel-date" data-tip="เลือกตามช่วงวัน/เวลา…" aria-label="เลือกตามช่วงวัน">${I.seldate}</button>
+        <button class="tool-btn" id="sel-invert" data-tip="สลับการเลือก" aria-label="สลับการเลือก">${I.selinvert}</button>
+        <button class="tool-btn" id="sel-clear" data-tip="ล้างการเลือก" aria-label="ล้างการเลือก">${I.x}</button>
+        <div class="head-sep"></div>
+        <span class="head-label" style="margin-left:auto">ขนาดย่อ</span>
+        <input type="range" class="slider" id="thumb-size" min="96" max="220" value="150" style="width:110px" aria-label="ขนาดภาพขนาดย่อ">
+        <span class="head-label" id="thumb-size-label" style="font-variant-numeric:tabular-nums">150</span>
+      </div>
+      <div id="thumbs-grid" data-od-id="thumbs-grid"></div>
+    </section>
+    <aside id="preview" data-od-id="preview">
+      <div class="rp-grip" id="rp-grip-p" role="separator" aria-orientation="vertical" aria-label="ปรับขนาดแผงตัวอย่าง"></div>
+      <div class="pv-img"><img id="pv-image" alt="ตัวอย่าง"></div>
+      <div class="pv-body" data-od-id="preview-body">
+        <div class="pv-name" id="pv-name">—</div>
+        <div class="pv-sub" id="pv-sub">—</div>
+        <div class="seg-row" id="pv-tabs" role="tablist" aria-label="ข้อมูลภาพ">
+          <button class="seg-btn" data-pvtab="exif" role="tab" id="pv-tab-exif">ข้อมูล EXIF</button>
+          <button class="seg-btn" data-pvtab="meta" role="tab" id="pv-tab-meta">ข้อมูล Metadata</button>
+        </div>
+        <div class="histo"><div class="histo-label">ฮิสโทแกรม</div><div id="pv-histo"></div></div>
+        <div class="histo" style="margin-top:8px"><div class="histo-label" id="pv-table-label">ข้อมูล EXIF</div><table class="pv-table" id="pv-meta"></table></div>
+        <div class="pv-note">นี่คือตัวอย่างการแสดงข้อมูลแบบจำลอง (sample library) เพื่อสาธิตการออกแบบ UI ของโปรแกรม</div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="statusbar" data-od-id="statusbar">
+    <div id="sb-left">8 ไฟล์ · เลือก 1 ไฟล์</div>
+    <div class="sb-right"><span id="sb-pos">ภาพ 1/8</span><span id="sb-size">–</span><span>กด F12 เพื่อตั้งค่า</span></div>
+  </div>
+</div>
+
+<!-- ================= VIEWER ================= -->
+<div class="overlay" id="viewer" data-od-id="viewer">
+  <div class="v-top">
+    <button class="tool-btn" id="v-back" data-tip="กลับไปโหมดเบราว์เซอร์" data-od-id="v-back">${I.back}</button>
+    <span class="v-filename" id="v-name">—<small id="v-sub">0/0</small></span>
+    <div class="tb-spacer"></div>
+    <button class="tool-btn" id="v-info-toggle" data-tip="ข้อมูล / ฮิสโทแกรม (I)" data-od-id="v-info-toggle">${I.info}</button>
+    <button class="tool-btn" id="v-theme" data-tip="สลับธีม">${I.theme}</button>
+    <button class="tool-btn" id="v-slideshow" data-tip="สไลด์โชว์">${I.play}</button>
+    <button class="tool-btn" id="v-close" data-tip="ปิด (Esc)" data-od-id="v-close">${I.x}</button>
+  </div>
+  <div class="v-menubar" data-od-id="v-menubar">
+    <button class="menu-btn" data-menu="vm-file">ไฟล์</button>
+    <button class="menu-btn" data-menu="vm-edit">แก้ไข</button>
+    <button class="menu-btn" data-menu="vm-view">มุมมอง</button>
+    <button class="menu-btn" data-menu="vm-tools">เครื่องมือ</button>
+    <button class="menu-btn" data-menu="vm-ss">สไลด์โชว์</button>
+    <span class="v-menu-spacer"></span>
+    <div class="menu-panel" id="vm-file" data-od-id="vmenu-file">
+      <div class="menu-item" data-act="open">${I.open}<span class="mi-label">เปิดไฟล์…</span><span class="mi-kbd">Ctrl+O</span></div>
+      <div class="menu-item" data-act="slideshow">${I.play}<span class="mi-label">สไลด์โชว์</span><span class="mi-kbd">F</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="saveas">${I.save}<span class="mi-label">บันทึกเป็น…</span><span class="mi-kbd">Ctrl+S</span></div>
+      <div class="menu-item" data-act="convert">${I.convert}<span class="mi-label">แปลงเป็นชุด…</span><span class="mi-kbd">Ctrl+Shift+B</span></div>
+      <div class="menu-item" data-act="print">${I.print}<span class="mi-label">พิมพ์…</span><span class="mi-kbd">Ctrl+P</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="view-close">${I.x}<span class="mi-label">ปิดตัวแสดงภาพ</span><span class="mi-kbd">Esc</span></div>
+    </div>
+    <div class="menu-panel" id="vm-edit">
+      <div class="menu-item" data-act="rotate-cw">${I.rotate}<span class="mi-label">หมุนขวา 90°</span><span class="mi-kbd">Ctrl+R</span></div>
+      <div class="menu-item" data-act="rotate-ccw">${I.rotateCcw}<span class="mi-label">หมุนซ้าย 90°</span><span class="mi-kbd">Ctrl+L</span></div>
+      <div class="menu-item" data-act="rotate-180">${I.rotate}<span class="mi-label">หมุน 180°</span><span class="mi-kbd">Ctrl+I</span></div>
+      <div class="menu-item" data-act="flip-h">${I.fliph}<span class="mi-label">พลิกแนวนอน</span><span class="mi-kbd">Ctrl+H</span></div>
+      <div class="menu-item" data-act="flip-v">${I.flipv}<span class="mi-label">พลิกแนวตั้ง</span><span class="mi-kbd">Ctrl+J</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="crop">${I.crop}<span class="mi-label">ครอบตัด…</span><span class="mi-kbd">X</span></div>
+      <div class="menu-item" data-act="draw">${I.pen}<span class="mi-label">กระดานวาด…</span><span class="mi-kbd">D</span></div>
+    </div>
+    <div class="menu-panel" id="vm-view">
+      <div class="menu-item" data-act="zoom-in">${I.zoomin}<span class="mi-label">ซูมเข้า</span><span class="mi-kbd">+</span></div>
+      <div class="menu-item" data-act="zoom-out">${I.zoomout}<span class="mi-label">ซูมออก</span><span class="mi-kbd">−</span></div>
+      <div class="menu-item" data-act="fit">${I.fit}<span class="mi-label">พอดีจอ</span><span class="mi-kbd">9</span></div>
+      <div class="menu-item" data-act="v-100">${I.percent}<span class="mi-label">ขนาดจริง</span><span class="mi-kbd">0</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="v-info">${I.info}<span class="mi-label">ข้อมูล / ฮิสโทแกรม</span><span class="mi-kbd">I</span></div>
+      <div class="menu-item" data-act="v-mag">${I.magnify}<span class="mi-label">แว่นขยาย</span><span class="mi-kbd">M</span></div>
+      <div class="menu-item sep"></div>
+      <div class="menu-item" data-act="theme">${I.theme}<span class="mi-label">สลับธีมสว่าง / มืด</span></div>
+      <div class="menu-item" data-act="fullview">${I.fit}<span class="mi-label">โหมดเต็มจอ</span><span class="mi-kbd">F11</span></div>
+    </div>
+    <div class="menu-panel" id="vm-tools">
+      <div class="menu-item" data-act="convert">${I.convert}<span class="mi-label">แปลงเป็นชุด…</span></div>
+      <div class="menu-item" data-act="compare">${I.compare}<span class="mi-label">เปรียบเทียบภาพ…</span></div>
+      <div class="menu-item" data-act="meta">${I.info}<span class="mi-label">ข้อมูลภาพ (Metadata)…</span></div>
+      <div class="menu-item" data-act="toast-empty">${I.wand}<span class="mi-label">ลบตาแดง…</span></div>
+    </div>
+    <div class="menu-panel" id="vm-ss">
+      <div class="menu-item" data-act="ss-play">${I.play}<span class="mi-label">เล่น / หยุด</span><span class="mi-kbd">Space</span></div>
+      <div class="menu-item" data-act="ss-next">${I.chevright}<span class="mi-label">ถัดไป</span><span class="mi-kbd">→</span></div>
+      <div class="menu-item" data-act="ss-prev">${I.chevleft}<span class="mi-label">ก่อนหน้า</span><span class="mi-kbd">←</span></div>
+    </div>
+  </div>
+  <div class="v-toolbar" data-od-id="v-toolbar">
+    <div class="tb-group">
+      <button class="tool-btn" id="vt-open" data-tip="เปิดไฟล์">${I.open}</button>
+      <button class="tool-btn" id="vt-saveas" data-tip="บันทึกเป็น">${I.save}</button>
+      <button class="tool-btn" id="vt-print" data-tip="พิมพ์">${I.print}</button>
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="vt-crop" data-tip="ครอบตัด (X)">${I.crop}</button>
+      <button class="tool-btn" id="vt-draw" data-tip="กระดานวาด (D)">${I.pen}</button>
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="vt-convert" data-tip="แปลงเป็นชุด">${I.convert}</button>
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="v-zoomout" data-tip="ซูมออก (−)">${I.zoomout}</button>
+      <span class="v-zoom" id="v-zoom">100%</span>
+      <button class="tool-btn" id="v-zoomin" data-tip="ซูมเข้า (+)">${I.zoomin}</button>
+      <button class="tool-btn" id="v-fit" data-tip="พอดีจอ (9)" data-od-id="v-fit">${I.fit}</button>
+      <button class="tool-btn" id="v-100" data-tip="ขนาดจริง (0)">${I.percent}</button>
+    </div>
+    <div class="tb-group">
+      <button class="tool-btn" id="v-rotate" data-tip="หมุนขวา 90°">${I.rotate}</button>
+      <button class="tool-btn" id="v-rotate-ccw" data-tip="หมุนซ้าย 90°">${I.rotateCcw}</button>
+      <button class="tool-btn" id="v-flip-h" data-tip="พลิกแนวนอน">${I.fliph}</button>
+      <button class="tool-btn" id="v-flip-v" data-tip="พลิกแนวตั้ง">${I.flipv}</button>
+      <button class="tool-btn" id="v-magnify" data-tip="แว่นขยาย (M)" data-od-id="v-magnify">${I.magnify}</button>
+    </div>
+    <div class="tb-spacer"></div>
+  </div>
+  <div class="v-stage checker" id="v-stage" data-od-id="v-stage">
+    <div class="v-image-wrap" id="v-wrap">
+      <img class="v-image" id="v-image" alt="ภาพตัวอย่าง">
+    </div>
+    <div class="v-lens" id="v-lens"></div>
+  </div>
+  <div class="v-bottom">
+    <div class="v-nav">
+      <button class="tool-btn" id="v-prev" data-tip="ก่อนหน้า (←)" data-od-id="v-prev">${I.chevleft}</button>
+      <button class="tool-btn" id="v-next" data-tip="ถัดไป (→)" data-od-id="v-next">${I.chevright}</button>
+    </div>
+    <input type="range" class="slider v-slider" id="v-zoomslider" min="10" max="400" value="100" aria-label="ซูม">
+    <div class="filmstrip" id="v-film" data-od-id="v-film"></div>
+  </div>
+  <div class="v-info" id="v-info" data-od-id="v-info">
+    <h4 id="vi-title">ข้อมูลภาพ</h4>
+    <div class="histo"><div class="histo-label">ฮิสโทแกรม RGB</div><div id="vi-histo"></div></div>
+    <div class="histo"><div class="histo-label">ข้อมูล EXIF</div><table class="pv-table" id="vi-meta"></table></div>
+    <div class="pv-note">ข้อมูลทั้งหมดเป็นค่าจำลองเพื่อการสาธิต</div>
+  </div>
+</div>
+
+<!-- ================= CROP BOARD ================= -->
+<div class="board" id="crop-board" data-od-id="crop-board">
+  <div class="board-top">
+    <div class="board-title">ครอบตัดภาพ</div>
+    <button class="btn ghost" data-act="board-close" data-target="crop-board">${I.x} ยกเลิก (Esc)</button>
+    <div class="tb-spacer"></div>
+    <span class="head-label">อัตราส่วน</span>
+    <div class="radio-row" id="crop-ratios" data-od-id="crop-ratios"></div>
+    <button class="tool-btn" id="crop-thirds" data-tip="แสดงกฎสามส่วน" data-od-id="crop-thirds">${I.grid}</button>
+    <button class="btn primary" id="crop-apply" data-od-id="crop-apply">${I.crop} ใช้การครอบตัด</button>
+  </div>
+  <div class="board-stage checker" id="crop-stage" data-od-id="crop-stage">
+    <img id="crop-img" alt="ภาพที่กำลังครอบตัด" draggable="false">
+    <div id="crop-rect" data-od-id="crop-rect"></div>
+  </div>
+  <div class="board-tools">
+    <span class="head-label" id="crop-dims">0 × 0 px</span>
+    <div class="tb-spacer"></div>
+    <span class="head-label">ซูม</span>
+    <input type="range" class="slider" id="crop-zoom" min="30" max="300" value="100" style="width:120px" aria-label="ซูมครอบตัด">
+    <span class="head-label" id="crop-zoom-label" style="width:42px;text-align:center;font-variant-numeric:tabular-nums">100%</span>
+  </div>
+</div>
+
+<!-- ================= DRAW BOARD ================= -->
+<div class="board" id="draw-board" data-od-id="draw-board">
+  <div class="board-top">
+    <div class="board-title">กระดานวาด</div>
+    <button class="btn ghost" data-act="board-close" data-target="draw-board">${I.x} ยกเลิก (Esc)</button>
+    <div class="tb-spacer"></div>
+    <button class="tool-btn" id="draw-undo" data-tip="เลิกทำ (Ctrl+Z)" data-od-id="draw-undo">${I.undo}</button>
+    <button class="tool-btn" id="draw-redo" data-tip="ทำซ้ำ (Ctrl+Y)" data-od-id="draw-redo">${I.redo}</button>
+    <span style="width:8px"></span>
+    <button class="btn primary" id="draw-save" data-od-id="draw-save">${I.save} บันทึก</button>
+  </div>
+  <div class="board-stage checker" id="draw-stage" data-od-id="draw-stage">
+    <img id="draw-img" alt="ภาพที่กำลังวาด" draggable="false">
+    <canvas id="draw-canvas" data-od-id="draw-canvas"></canvas>
+    <div id="text-overlay"><input id="text-input" placeholder="พิมพ์ข้อความ…" aria-label="พิมพ์ข้อความ"></div>
+  </div>
+  <div class="board-tools">
+    <div class="swatch-row" id="draw-tools" data-od-id="draw-tools"></div>
+    <div class="swatch-row" id="draw-colors" data-od-id="draw-colors"></div>
+    <div class="tb-group" style="border-right:none">
+      <span class="head-label">ขนาด</span>
+      <input type="range" class="slider" id="draw-width" min="1" max="24" value="3" style="width:110px" aria-label="ขนาดเส้น">
+      <span class="head-label" id="draw-width-label" style="font-variant-numeric:tabular-nums">3</span>
+    </div>
+    <div class="tb-group" style="border-right:none">
+      <span class="head-label">Opacity</span>
+      <input type="range" class="slider" id="draw-opacity" min="10" max="100" value="100" style="width:110px" aria-label="ความทึบ">
+      <span class="head-label" id="draw-opacity-label" style="font-variant-numeric:tabular-nums">100%</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DIALOGS ================= -->
+<div class="modal" id="convert-dialog" data-od-id="convert-dialog" role="dialog" aria-modal="true" aria-labelledby="convert-dialog-title">
+  <div class="dialog">
+    <div class="dialog-title" id="convert-dialog-title">แปลง / เปลี่ยนชื่อเป็นชุด${I.close}</div>
+    <div class="dialog-body">
+      <div id="convert-list" style="max-height:170px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:6px"></div>
+      <div class="row-flex" style="margin-top:14px">
+        <div class="field"><label>รูปแบบผลลัพธ์</label>
+          <select class="select" id="convert-format" data-od-id="convert-format" aria-label="รูปแบบผลลัพธ์">
+            <option value="JPG">JPEG (.jpg)</option><option value="PNG">PNG (.png)</option><option value="WEBP">WebP (.webp)</option><option value="TIFF">TIFF (.tif)</option>
+          </select>
+        </div>
+        <div class="field"><label>คุณภาพ (JPEG/WebP)</label><input type="range" class="slider" id="convert-quality" min="20" max="100" value="90" style="width:100%" aria-label="คุณภาพการบีบอัด"><span class="head-label" id="convert-quality-label" style="font-variant-numeric:tabular-nums">90%</span></div>
+      </div>
+      <label class="checkrow"><input type="checkbox" id="convert-resize"> ปรับขนาดภาพระหว่างแปลง</label>
+      <div class="row-flex" id="convert-resize-row" style="display:none">
+        <div class="field"><label>ความกว้าง (px)</label><input type="number" class="text-input" id="convert-w" value="2048" min="1" aria-label="ความกว้าง (px)"></div>
+        <div class="field"><label>ความสูง (px)</label><input type="number" class="text-input" id="convert-h" value="2048" min="1" aria-label="ความสูง (px)"></div>
+      </div>
+      <div class="field" style="margin-top:10px"><label>โฟลเดอร์ปลายทาง</label><input type="text" class="text-input" id="convert-dir2" value="D:\รูปภาพ\Converted" aria-label="โฟลเดอร์ปลายทาง"></div>
+      <div class="row-flex" style="align-items:center">
+        <div class="progress" style="flex:1"><div class="bar" id="convert-progress"></div></div>
+        <span class="head-label" id="convert-state" style="font-variant-numeric:tabular-nums" aria-live="polite">พร้อมแปลง</span>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn ghost" data-act="modal-close" data-target="convert-dialog">ปิด</button>
+      <button class="btn primary" id="convert-run" data-od-id="convert-run">${I.convert} แปลงไฟล์</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="saveas-dialog" data-od-id="saveas-dialog" role="dialog" aria-modal="true" aria-labelledby="saveas-dialog-title">
+  <div class="dialog">
+    <div class="dialog-title" id="saveas-dialog-title">บันทึกเป็น${I.close}</div>
+    <div class="dialog-body">
+      <div class="compare" data-od-id="compare-box">
+        <div class="cbox"><img id="saveas-orig" alt="ต้นฉบับ"><div class="cap"><span>ต้นฉบับ</span><span id="saveas-orig-size">11.2 MB</span></div></div>
+        <div class="cbox"><img id="saveas-new" alt="ไฟล์ใหม่"><div class="cap"><span>ไฟล์ใหม่</span><span id="saveas-new-size">—</span></div></div>
+      </div>
+      <div class="field" style="margin-top:14px"><label>คุณภาพ JPEG — เปรียบเทียบรายละเอียดกับต้นฉบับ</label>
+        <input type="range" class="slider" id="saveas-quality" min="20" max="100" value="90" style="width:100%" aria-label="คุณภาพ JPEG">
+      </div>
+      <div class="row-flex"><div class="field"><label>ชื่อไฟล์</label><input type="text" class="text-input" id="saveas-name" aria-label="ชื่อไฟล์"></div>
+      <div class="field" style="flex:0 0 120px"><label>ชนิด</label><select class="select" id="saveas-format" aria-label="ชนิดไฟล์"><option>JPEG</option><option>PNG</option><option>WebP</option><option>BMP</option></select></div></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn ghost" data-act="modal-close" data-target="saveas-dialog">ยกเลิก</button>
+      <button class="btn primary" id="saveas-run" data-od-id="saveas-run">${I.save} บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- metadata editor dialog -->
+<div class="modal" id="meta-dialog" data-od-id="meta-dialog" role="dialog" aria-modal="true" aria-labelledby="meta-dialog-title">
+  <div class="dialog" style="width:660px">
+    <div class="dialog-title" id="meta-dialog-title">จัดการข้อมูลภาพ (Metadata)${I.close}</div>
+    <div class="dialog-body">
+      <div class="compare" data-od-id="meta-fields">
+        <div class="pv-name" id="meta-name" style="margin-bottom:2px">—</div>
+        <div class="pv-sub" id="meta-sub" style="margin-bottom:12px">—</div>
+      </div>
+      <div class="field"><label>หัวข้อ</label><input type="text" class="text-input" id="meta-title" aria-label="หัวข้อ"><div class="stock-hint" id="meta-title-hint"></div></div>
+      <div class="field"><label>คำอธิบาย (Description)</label><textarea class="text-input" id="meta-desc" rows="3" aria-label="คำอธิบาย" style="resize:vertical;line-height:1.45"></textarea></div>
+      <div class="field"><label>แท็ก / คำค้น (คั่นด้วย ,)</label>
+        <input type="text" class="text-input" id="meta-tags" aria-label="แท็ก">
+        <div class="stock-hint" id="meta-tags-hint"></div></div>
+      <div class="row-flex">
+        <div class="field"><label>หมวดหมู่</label><select class="select" id="meta-category" aria-label="หมวดหมู่"><option value="">—</option></select></div>
+        <div class="field"><label>ประเทศ / สถานที่</label><input type="text" class="text-input" id="meta-location" aria-label="ประเทศ สถานที่"></div>
+      </div>
+      <div class="row-flex">
+        <div class="field"><label>ผู้แต่ง / ช่างภาพ (Byline)</label><input type="text" class="text-input" id="meta-author" aria-label="ผู้แต่ง"></div>
+        <div class="field"><label>ผู้ถือลิขสิทธิ์</label><input type="text" class="text-input" id="meta-copyright" aria-label="ผู้ถือลิขสิทธิ์"></div>
+      </div>
+      <div class="row-flex">
+        <div class="field"><label>วันที่ถ่าย</label><input type="text" class="text-input" id="meta-date" aria-label="วันที่ถ่าย" style="width:150px"></div>
+        <div class="field"><label>สัญญาอนุญาต (License)</label><select class="select" id="meta-license" aria-label="สัญญาอนุญาต"></select></div>
+      </div>
+      <div style="display:flex;gap:18px;margin:6px 0 2px;flex-wrap:wrap">
+        <label class="checkrow"><input type="checkbox" id="meta-model-release"> มีใบยินยอมบุคคล (Model Release)</label>
+        <label class="checkrow"><input type="checkbox" id="meta-property-release"> มีใบยินยอมทรัพย์สิน (Property Release)</label>
+      </div>
+      <div class="stock-check" id="meta-readiness"></div>
+      <div class="histo" style="margin-top:10px"><div class="histo-label">ข้อมูลเดิม</div><table class="pv-table" id="meta-exif"></table></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn ghost" id="meta-reset">ตั้งค่าจาก EXIF ใหม่</button>
+      <button class="btn ghost" data-act="modal-close" data-target="meta-dialog">ยกเลิก</button>
+      <button class="btn primary" id="meta-save">${I.save} บันทึกข้อมูลภาพ</button>
+    </div>
+  </div>
+</div>
+
+<div id="settings-panel" data-od-id="settings-panel" role="dialog" aria-label="การตั้งค่า">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div class="board-title">การตั้งค่า</div>
+    <button class="tool-btn" id="settings-close" data-tip="ปิด">${I.x}</button>
+  </div>
+  <div class="settings-row"><div><div class="settings-label">ภาษา</div><div class="settings-sub">ไทย / อังกฤษ</div></div>
+    <button class="switch" id="set-lang" data-od-id="set-lang" role="switch" aria-checked="false" aria-label="ภาษา"></button></div>
+  <div class="settings-row"><div><div class="settings-label">ธีม</div><div class="settings-sub">สว่าง / มืด ตามสไตล์ Windows</div></div>
+    <button class="switch" id="set-theme" data-od-id="set-theme" role="switch" aria-checked="false" aria-label="ธีม"></button></div>
+  <div class="settings-row"><div><div class="settings-label">แผงตัวอย่าง</div><div class="settings-sub">แสดงตัวอย่าง + ฮิสโทแกรมทางขวา</div></div>
+    <button class="switch on" id="set-preview" role="switch" aria-checked="true" aria-label="แผงตัวอย่าง"></button></div>
+  <div class="settings-row"><div><div class="settings-label">ขนาดภาพขนาดย่อ</div></div>
+    <input type="range" class="slider" id="set-thumbsize" min="96" max="220" value="150" style="width:120px" aria-label="ขนาดภาพขนาดย่อ"></div>
+  <div class="settings-row"><div><div class="settings-label">หน้าต่างโปรแกรม</div><div class="settings-sub">จำลองหน้าต่างเดสก์ท็อป</div></div>
+    <button class="btn" id="set-restore" style="padding:5px 10px;font-size:11.5px">คืนค่าหน้าต่าง</button></div>
+  <div class="settings-row"><div><div class="settings-label">แถบเครื่องมือ</div><div class="settings-sub">เลือกปุ่มที่ต้องการแสดง</div></div>
+    <button class="btn" id="set-customize" style="padding:5px 10px;font-size:11.5px">ปรับแต่ง…</button></div>
+  <div class="pv-note" style="margin-top:12px">แป้นลัด: ←/→ เปลี่ยนภาพ · +/- ซูม · 0 = ขนาดจริง · 9 = พอดีจอ · M = แว่นขยาย · X ครอบตัด · D กระดานวาด · F สไลด์โชว์ · I ข้อมูล · F12 ตั้งค่า · Esc ปิด</div>
+</div>
+
+<!-- ================= SLIDESHOW ================= -->
+<div id="slideshow" data-od-id="slideshow">
+  <div class="ss-stage" id="ss-stage"></div>
+  <div class="ss-bar">
+    <button class="ss-btn" id="ss-prev" data-tip="ก่อนหน้า" aria-label="สไลด์ก่อนหน้า">${I.chevleft}</button>
+    <button class="ss-btn" id="ss-play" data-od-id="ss-play" data-tip="เล่น / หยุด" aria-label="เล่น / หยุด">${I.play}</button>
+    <button class="ss-btn" id="ss-next" data-tip="ถัดไป" aria-label="สไลด์ถัดไป">${I.chevright}</button>
+    <span class="ss-pos" id="ss-pos">1/8</span>
+    <input type="range" class="slider v-slider" id="ss-slider" min="1" max="8" value="1" aria-label="ตำแหน่งสไลด์">
+    <button class="ss-btn" id="ss-close" data-tip="ปิด (Esc)">${I.x}</button>
+  </div>
+</div>
+
+<div id="ctxmenu" data-od-id="ctxmenu"></div>
+
+<!-- customize toolbar dialog -->
+<div class="modal" id="tb-custom-dialog" role="dialog" aria-modal="true" aria-labelledby="tb-custom-title">
+  <div class="dialog" style="width:520px">
+    <div class="dialog-title" id="tb-custom-title">ปรับแต่งแถบเครื่องมือ${I.close}</div>
+    <div class="dialog-body">
+      <p class="stock-hint" style="font-size:12px;margin:0 0 10px">เลือกปุ่มที่ต้องการให้แสดงในแถบเครื่องมือ — ยกเลิกเพื่อซ่อน</p>
+      <div id="tb-custom-list" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"></div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn ghost" id="tb-custom-restore">คืนค่าเริ่มต้น</button>
+      <button class="btn ghost" data-act="modal-close" data-target="tb-custom-dialog">ปิด</button>
+      <button class="btn primary" id="tb-custom-save">บันทึก</button>
+    </div>
+  </div>
+</div>
+<div id="toast" data-od-id="toast" role="status" aria-live="polite"></div>
+<div id="meta-pop" data-od-id="meta-pop" aria-label="ข้อมูลภาพ"></div>
+
+<script>
+/* ===================== icons ===================== */
+const I={
+open:'<path d="M6 17l2-5h14l-3 8a2 2 0 01-2 1H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h7a2 2 0 012 2v4"/>',
+save:'<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>',
+print:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+mail:'<path d="M4 4h16c1.1.0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1.0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>',
+copy:'<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
+move:'<polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>',
+trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>',
+rename:'<line x1="18" y1="2" x2="22" y2="6"/><path d="M7.5 20.5 19 9l-4-4L3.5 16.5 2 22z"/>',
+rotate:'<path d="M21 2v6h-6"/><path d="M21 13a9 9 0 11-3-7.7L21 8"/>',
+  rotateCcw:'<path d="M3 2v6h6"/><path d="M3 13a9 9 0 103-7.7L3 8"/>',
+  fliph:'<path d="M12 3v18"/><path d="M8 3 4 7l4 4"/><path d="M16 3l4 4-4 4"/><path d="M8 13l-4 4 4 4"/><path d="M16 13l4 4-4 4"/>',
+  flipv:'<path d="M3 12h18"/><path d="M3 8 7 4l4 4"/><path d="M13 8l4-4 4 4"/><path d="M3 16 7 20l4-4"/><path d="M13 16l4 4 4-4"/>',
+crop:'<path d="M6.13 1 6 16a2 2 0 002 2h15"/><path d="M1 6.13 16 6a2 2 0 012 2v15"/>',
+pen:'<path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/>',
+compare:'<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="3" x2="12" y2="21"/>',
+convert:'<path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 01-4 4H3"/>',
+play:'<polygon points="5 3 19 12 5 21 5 3"/>',
+camera:'<path d="M14.5 4h-5L7 7H4A2 2 0 002 9v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+chevleft:'<polyline points="15 18 9 12 15 6"/>',
+chevright:'<polyline points="9 18 15 12 9 6"/>',
+up:'<polyline points="18 15 12 9 6 15"/>',
+refresh:'<path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12A9 9 0 016 18.7L3 16"/>',
+search:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+panel:'<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/>',
+gear:'<path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/>',
+theme:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M5 5l1.5 1.5"/><path d="M17.5 17.5 19 19"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M5 19l1.5-1.5"/><path d="M17.5 6.5 19 5"/>',
+x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+close:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+zoomin:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>',
+zoomout:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/>',
+fit:'<path d="M8 3H5A2 2 0 003 5v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>',
+percent:'<line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+magnify:'<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>',
+info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+undo:'<path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/>',
+redo:'<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7"/>',
+sort:'<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>',
+  sortasc:'<path d="M12 5v14"/><path d="m5 12 7-7 7 7"/>',
+  sortdesc:'<path d="M12 5v14"/><path d="m5 12 7 7 7-7"/>',
+  sortdir:'<path d="M7 3v18"/><path d="m4 15 3 3 3-3"/><path d="M17 21V3"/><path d="m14 9 3-3 3 3"/>',
+  selall:'<path d="m9 6 6 6-6 6"/><path d="m15 6 6 6-6 6"/>',
+  seltype:'<rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M8 7h.01M8 17h.01"/>',
+  seldate:'<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="3" y1="9" x2="21" y2="9"/><circle cx="8.5" cy="14.5" r=".5"/><circle cx="12" cy="14.5" r=".5"/><circle cx="15.5" cy="14.5" r=".5"/><circle cx="8.5" cy="17.5" r=".5"/><circle cx="12" cy="17.5" r=".5"/><circle cx="15.5" cy="17.5" r=".5"/>',
+  selinvert:'<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/><line x1="5.8" y1="5.8" x2="9.2" y2="9.2"/><line x1="9.2" y1="5.8" x2="5.8" y2="9.2"/><circle cx="16.5" cy="16.5" r="2.1"/>',
+  cal:'<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+back:'<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+tag:'<path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83.0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+folder:'<path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>',
+folderopen:'<path d="M6 17l2-5h14l-3 8a2 2 0 01-2 1H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h7a2 2 0 012 2v4"/>',
+home:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+drive:'<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24A2 2 0 005.45 5.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
+check:'<polyline points="20 6 9 17 4 12"/>',
+plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+minus:'<line x1="5" y1="12" x2="19" y2="12"/>',
+pause:'<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>',
+moon:'<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>',
+image:'<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+eye:'<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+sliders:'<line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/>',
+fileplus:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>',
+filetext:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+monitor:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+filter:'<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+xcircle:'<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+layers:'<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+help:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+wand:'<path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72z"/><path d="m14 7 3 3"/>',
+"tool-text":'<polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>',
+"tool-line":'<line x1="4" y1="20" x2="20" y2="4"/>',
+"tool-arrow":'<path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>',
+"tool-rect":'<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',
+"tool-ellipse":'<circle cx="12" cy="12" r="10"/>',
+"tool-highlight":'<path d="M9 11l-6 6v3h9l3-3"/><path d="M22 12l-4.6 4.6a2 2 0 01-2.8.0l-5.2-5.2a2 2 0 010-2.8L14 4"/>',
+"tool-callout":'<path d="M21 11.5a8.38 8.38.0 01-.9 3.8A8.5 8.5.0 0112.5 20a8.38 8.38.0 01-3.8-.9L3 21l1.9-5.7A8.38 8.38.0 014 11.5a8.5 8.5.0 014.7-7.6 8.38 8.38.0 013.8-.9h.5a8.48 8.48.0 018 8v.5z"/>',
+};
+
+
+
+/* ===================== sample imagery (SVG scenes) ===================== */
+function lg(id,c1,c2,x1=0,y1=0,x2=0,y2=1){return `<linearGradient id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>`;}
+function svgWrap(w,h,inner){return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice">${inner}</svg>`;}
+function glow(x,y,r,c,o=1){return `<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" opacity="${o}"><animate attributeName="opacity" dur="4s" values=".8;1;.8" repeatCount="indefinite"/></circle>`;}
+
+function sceneAlpine(w,h){
+  const defs=lg('sky','#f7b27a','#e8765f')+lg('lake','#d88f74','#7a4a52')+lg('m1','#9aa8c4','#7d8fb2')+lg('m2','#6b7ba0','#4b5a82')+lg('m3','#3d4a6e','#2b3554')+lg('fp','#2f3a58','#232c45');
+  const sun=glow(w*0.76,h*0.28,14,'#ffd9a8')+glow(w*0.76,h*0.28,42,'#ffd9a8',.5);
+  const peaks=`<path d="M0 ${h*0.52} L${w*0.18} ${h*0.26} L${w*0.3} ${h*0.42} L${w*0.46} ${h*0.2} L${w*0.58} ${h*0.4} L${w*0.76} ${h*0.24} L${w*0.9} ${h*0.38} L${w} ${h*0.3} L${w} ${h*0.52}Z" fill="url(#m1)"/>`;
+  const peaks2=`<path d="M0 ${h*0.58} L${w*0.22} ${h*0.42} L${w*0.42} ${h*0.52} L${w*0.66} ${h*0.38} L${w*0.85} ${h*0.5} L${w} ${h*0.44} L${w} ${h*0.62}Z" fill="url(#m2)"/>`;
+  const peaks3=`<path d="M0 ${h*0.66} L${w*0.3} ${h*0.52} L${w*0.55} ${h*0.62} L${w*0.8} ${h*0.5} L${w} ${h*0.58} L${w} ${h*0.8} L0 ${h*0.8}Z" fill="url(#m3)"/>`;
+  const fore=`<path d="M0 ${h*0.8} L${w*0.14} ${h*0.72} L${w*0.34} ${h*0.84} L${w*0.6} ${h*0.74} L${w*0.8} ${h*0.85} L${w} ${h*0.76} L${w} ${h} L0 ${h}Z" fill="url(#fp)"/>`;
+  const water=`<rect x="0" y="${h*0.6}" width="${w}" height="${h*0.4}" fill="url(#lake)" opacity=".85"/><ellipse cx="${w*0.76}" cy="${h*0.78}" rx="${w*0.06}" ry="${h*0.008}" fill="#ffd9a8" opacity=".5"/>`;
+  const ripples=Array.from({length:6},(_,i)=>`<line x1="${w*(0.1+0.7*(i/5))}" y1="${h*(0.66+0.05*i)}" x2="${w*(0.4+0.5*(i/5))}" y2="${h*(0.64+0.05*i)}" stroke="#ffd9a8" stroke-width="2" opacity=".35"/>`).join('');
+  return svgWrap(w,h,`<defs>${defs}</defs><rect width="${w}" height="${h}" fill="url(#sky)"/>${sun}${peaks}${peaks2}${peaks3}${water}${ripples}${fore}`);
+}
+function sceneCity(w,h){
+  const defs=lg('csky','#262b56','#7a4f78',0,0,0,1)+lg('cglow','#ff9e64','#ff5e7e',0,0,0,1);
+  const bld=[[0,40,22],[22,28,34],[50,52,20],[70,34,40],[110,46,24],[134,30,38],[172,42,22],[194,24,46]];
+  const buildings=bld.map(([x,hh,ww])=>`<rect x="${x}" y="${h-hh}" width="${ww}" height="${hh}" fill="#161a2e"/>`).join('');
+  const windows=Array.from({length:70},(_,i)=>{const x=3+((i*37)%48),y=6+((i*13)%22),b=Math.floor((i*29)%bld.length);const [bx,hh,ww]=bld[b];const wx=bx+ww*0.15+(x% (ww*0.6)),wy=h-hh+4+(y%(hh-12));return (i%7===0)?`<rect x="${wx}" y="${wy}" width="2.2" height="3" fill="#ffd9a8" opacity="${0.5+0.5*((i%5)/4)}"/>`:`<rect x="${wx}" y="${wy}" width="1.8" height="2.6" fill="#4b5bd0" opacity=".5"/>`;}).join('');
+  const neon=Array.from({length:9},(_,i)=>glow(60+i*170,h*0.35+((i*53)%120),10+ (i%3)*6,i%2?'#ff8fb3':'#9ad6ff',.55)).join('');
+  const street=`<path d="M0 ${h} L${w*0.25} ${h*0.62} L${w*0.75} ${h*0.62} L${w} ${h}Z" fill="#0d1022"/>`;
+  return svgWrap(w,h,`<defs>${defs}</defs><rect width="${w}" height="${h}" fill="url(#csky)"/><ellipse cx="${w*0.5}" cy="${h*0.78}" rx="${w*0.4}" ry="${h*0.3}" fill="url(#cglow)" opacity=".55"/>${buildings}${windows}${neon}${street}<path d="M${w*0.5} ${h*0.62} L${w*0.5} ${h}" stroke="#ffd9a8" stroke-width="1.5" opacity=".4"/>`);
+}
+function scenePortrait(w,h){
+  const defs=lg('psk','#f6c28b','#d97b5c',0,0,0,1);
+  const bg=glow(w*0.32,h*0.26,Math.min(w,h)*0.2,'#ffdfae',.9);
+  const head=`<path d="M${w*0.5-70} ${h*0.62} C${w*0.5-70} ${h*0.3} ${w*0.5+70} ${h*0.3} ${w*0.5+70} ${h*0.62} C${w*0.5+110} ${h*0.82} ${w*0.5+60} ${h} ${w*0.5+60} ${h} L${w*0.5-60} ${h} C${w*0.5-60} ${h} ${w*0.5-110} ${h*0.82} ${w*0.5-70} ${h*0.62}Z" fill="#2b2b33"/>`;
+  const rim=`<path d="M${w*0.5-70} ${h*0.62} C${w*0.5-70} ${h*0.3} ${w*0.5+70} ${h*0.3} ${w*0.5+70} ${h*0.62}" stroke="#ffcf9e" stroke-width="3" fill="none" opacity=".7"/>`;
+  return svgWrap(w,h,`<defs>${defs}</defs><rect width="${w}" height="${h}" fill="url(#psk)"/><ellipse cx="${w*0.5}" cy="${h*0.2}" rx="${w*0.5}" ry="${h*0.24}" fill="#fff" opacity=".14"/>${bg}${head}${rim}`);
+}
+function sceneCoffee(w,h){
+  const defs=lg('ctb','#c9a97f','#a8815a',0,0,1,1);
+  const saucer=`<ellipse cx="${w*0.5}" cy="${h*0.58}" rx="${w*0.3}" ry="${h*0.11}" fill="#efe6d8"/>`;
+  const cup=`<path d="M${w*0.5-0.19*w} ${h*0.58} h${0.38*w} l-${0.03*w} ${0.2*h} h-${0.32*w}Z" fill="#f7f1e6"/><path d="M${w*0.5+0.19*w} ${h*0.56} c${0.07*w} 0 ${0.09*w} ${0.08*h} 0 ${0.12*h}" stroke="#f7f1e6" stroke-width="${0.025*w}" fill="none"/>`;
+  const surface=`<ellipse cx="${w*0.5}" cy="${h*0.58}" rx="${w*0.17}" ry="${h*0.055}" fill="#6b4a33"/>`;
+  const beans=Array.from({length:7},(_,i)=>{const a=i*0.9+1.2;return `<ellipse cx="${w*0.5+Math.cos(a)*w*0.13}" cy="${h*0.58+Math.sin(a)*h*0.045}" rx="${w*0.02}" ry="${w*0.009}" fill="#3a2a1a" transform="rotate(${i*40} ${w*0.5+Math.cos(a)*w*0.13} ${h*0.58+Math.sin(a)*h*0.045})"/>`;}).join('');
+  const steam=`<path d="M${w*0.46} ${h*0.44} q-8 -20 8 -34 M${w*0.54} ${h*0.42} q6 -16 -6 -30 M${w*0.5} ${h*0.46} q-5 -14 5 -26" stroke="#fff" stroke-width="3" fill="none" opacity=".5" stroke-linecap="round"/>`;
+  const spoon=`<path d="M${w*0.16} ${h*0.8} L${w*0.4} ${h*0.66}" stroke="#cfc6b6" stroke-width="4" stroke-linecap="round"/><ellipse cx="${w*0.14}" cy="${h*0.82}" rx="${w*0.035}" ry="${h*0.02}" fill="#d8cfbf" transform="rotate(-32 ${w*0.14} ${h*0.82})"/>`;
+  return svgWrap(w,h,`<defs>${defs}</defs><rect width="${w}" height="${h}" fill="url(#ctb)"/>${saucer}${cup}${surface}${beans}${steam}${spoon}`);
+}
+function sceneBeach(w,h){
+  const defs=lg('bsky','#ff9a5c','#ff6f8a',0,0,0,1)+lg('bsea','#f0747e','#8a5b93',0,0,0,1)+lg('bsand','#d9a86b','#c08d5a',0,0,0,1);
+  const sun=glow(w*0.5,h*0.52,Math.min(w,h)*0.05,'#ffdfae',.95)+glow(w*0.5,h*0.52,Math.min(w,h)*0.11,'#ffdfae',.35);
+  const sea=`<rect x="0" y="${h*0.56}" width="${w}" height="${h*0.2}" fill="url(#bsea)"/><line x1="${w*0.1}" y1="${h*0.63}" x2="${w*0.35}" y2="${h*0.63}" stroke="#ffd9a8" stroke-width="2" opacity=".5"/><line x1="${w*0.55}" y1="${h*0.68}" x2="${w*0.85}" y2="${h*0.68}" stroke="#ffd9a8" stroke-width="2" opacity=".4"/>`;
+  const sand=`<rect x="0" y="${h*0.76}" width="${w}" height="${h*0.24}" fill="url(#bsand)"/>`;
+  const palm=`<path d="M${w*0.18} ${h} q-8 -60 14 -120 M${w*0.18} ${h} q-14 -50 -26 -110" stroke="#4a3a28" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M${w*0.2} ${h*0.6} c-30 -6 -56 2 -66 18 c22 6 44 2 60 -10 M${w*0.2} ${h*0.6} c-8 -30 -22 -46 -40 -48 c-2 22 8 40 34 44 M${w*0.2} ${h*0.6} c28 -8 48 0 56 16 c-18 10 -38 6 -52 -6" fill="#3d7a52"/>`;
+  const birds='<path d="M200 120 q12 -10 24 0 q12 -10 24 0 M160 90 q9 -8 18 0 q9 -8 18 0" stroke="#33302f" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  return svgWrap(w,h,`<defs>${defs}</defs><rect width="${w}" height="${h}" fill="url(#bsky)"/>${birds}${sun}${sea}${sand}${palm}`);
+}
+function sceneFlower(w,h){
+  const defs=lg('fsky','#163232','#0a1c1c',0,0,1,1);
+  const cx=w*0.5,cy=h*0.48;
+  let petals='';for(let i=0;i<9;i++){const a=i/9*Math.PI*2;const px=cx+Math.cos(a)*w*0.16,py=cy+Math.sin(a)*h*0.16;
+    petals+=`<ellipse cx="${px}" cy="${py}" rx="${w*0.11}" ry="${h*0.05}" fill="${i%2?'#ff7aa8':'#ff9ab5'}" opacity="${0.92-0.1*(i%3)}" transform="rotate(${i*40+90} ${px} ${py})"/>`;}
+  const core=glow(cx,cy,Math.min(w,h)*0.05,'#ffcf6b',1)+`<circle cx="${cx}" cy="${cy}" r="${Math.min(w,h)*0.032}" fill="#8a5b2a"/>`;
+  const bokeh=Array.from({length:6},(_,i)=>glow(w*0.15+i*0.13*w,h*0.12+((i*37)%60),4+i*2,'#9ad6ff',.35)).join('');
+  const stem=`<path d="M${cx} ${cy+h*0.1} q-6 40 4 80" stroke="#2f5d3a" stroke-width="7" fill="none" stroke-linecap="round"/><ellipse cx="${cx-8}" cy="${cy+h*0.32}" rx="${w*0.05}" ry="${h*0.012}" fill="#2f5d3a" transform="rotate(38 ${cx-8} ${cy+h*0.32})"/>`;
+  return svgWrap(w,h,`<defs>${defs}</defs><rect width="${w}" height="${h}" fill="url(#fsky)"/>${bokeh}${petals}${core}${stem}`);
+}
+function sceneForest(w,h){
+  const defs=lg('fsky','#24482f','#14301f',0,0,0,1);
+  const shafts=`<path d="M${w*0.6} 0 L${w*0.92} 0 L${w*0.55} ${h} L${w*0.28} ${h}Z" fill="#cfe8c0" opacity=".09"/><path d="M${w*0.75} 0 L${w} 0 L${w*0.7} ${h} L${w*0.5} ${h}Z" fill="#cfe8c0" opacity=".07"/>`;
+  const trunks=[0.08,0.18,0.3,0.42,0.55,0.68,0.8,0.92].map((f,i)=>`<rect x="${w*f}" y="0" width="${4+ (i%3)*3}" height="${h}" fill="#2a1f15" opacity="${0.85-0.1*i}"/>`).join('');
+  const path=`<path d="M${w*0.42} ${h} L${w*0.52} ${h*0.5} L${w*0.6} ${h*0.5} L${w*0.56} ${h}Z" fill="#7a5a3a"/>`;
+  const pathlight=`<path d="M${w*0.45} ${h} L${w*0.55} ${h*0.55} L${w*0.58} ${h*0.55} L${w*0.53} ${h}Z" fill="#ffd9a8" opacity=".25"/>`;
+  return svgWrap(w,h,`<defs>${defs}</defs><rect width="${w}" height="${h}" fill="url(#fsky)"/>${shafts}${trunks}${path}${pathlight}`);
+}
+function sceneNight(w,h){
+  const defs=lg('nsky','#0b1026','#1d2650',0,0,0,1);
+  let stars='';for(let i=0;i<70;i++){const x=(i*97)%w,y=(i*53)%(h*0.7);const s=((i*13)%10<2)?1.6:1;stars+=`<circle cx="${x}" cy="${y}" r="${s}" fill="${i%3?'#dfe6ff':'#ffd9a8'}" opacity="${0.3+0.5*((i%5)/4)}"/>`;}
+  const milky=`<ellipse cx="${w*0.6}" cy="${h*0.3}" rx="${w*0.35}" ry="${h*0.12}" fill="#6b7ab8" opacity=".16" transform="rotate(-24 ${w*0.6} ${h*0.3})"/>`;
+  const mt=`<path d="M0 ${h*0.72} L${w*0.22} ${h*0.52} L${w*0.42} ${h*0.68} L${w*0.62} ${h*0.5} L${w*0.8} ${h*0.66} L${w} ${h*0.55} L${w} ${h} L0 ${h}Z" fill="#0d1426"/>`;
+  const moon=glow(w*0.8,h*0.22,10,'#f4e9c8',.95);
+  return svgWrap(w,h,`<defs>${defs}</defs><rect width="${w}" height="${h}" fill="url(#nsky)"/>${milky}${stars}${moon}${mt}`);
+}
+
+const SCENES={alpine:sceneAlpine,city:sceneCity,portrait:scenePortrait,coffee:sceneCoffee,beach:sceneBeach,flower:sceneFlower,forest:sceneForest,night:sceneNight};
+
+const IMAGES=[
+{id:'alpine-lake',folder:'Trip 2026',scene:'alpine',w:5472,h:3078,name:'alpine-lake.jpg',date:'2026-07-02 08:14',size:'11.2 MB',cam:'Canon EOS R6 Mark II',lens:'RF 24-105mm f/4L',iso:100,f:'f/8',s:'1/250s',fl:'35mm',fmt:'JPEG',dims:'5472 × 3078'},
+{id:'beach-sunset',folder:'Trip 2026',scene:'beach',w:5152,h:2898,name:'beach-sunset.jpg',date:'2026-07-03 18:42',size:'9.8 MB',cam:'Canon EOS R6 Mark II',lens:'RF 24-105mm f/4L',iso:400,f:'f/5.6',s:'1/160s',fl:'50mm',fmt:'JPEG',dims:'5152 × 2898'},
+{id:'forest-trail',folder:'Trip 2026',scene:'forest',w:4608,h:3072,name:'forest-trail.jpg',date:'2026-07-04 09:05',size:'7.4 MB',cam:'Canon EOS R6 Mark II',lens:'RF 70-200mm f/4L',iso:200,f:'f/6.3',s:'1/320s',fl:'120mm',fmt:'JPEG',dims:'4608 × 3072'},
+{id:'portrait-sunlight',folder:'Portraits',scene:'portrait',w:3600,h:4500,name:'portrait-sunlight.jpg',date:'2026-06-21 17:30',size:'6.1 MB',cam:'Sony A7 IV',lens:'FE 85mm f/1.8',iso:100,f:'f/2.2',s:'1/500s',fl:'85mm',fmt:'JPEG',dims:'3600 × 4500'},
+{id:'coffee-morning',folder:'Food',scene:'coffee',w:3000,h:3000,name:'coffee-morning.jpg',date:'2026-06-15 07:55',size:'5.3 MB',cam:'Sony A7 IV',lens:'FE 35mm f/1.8',iso:800,f:'f/2.8',s:'1/125s',fl:'35mm',fmt:'JPEG',dims:'3000 × 3000'},
+{id:'macro-flower',folder:'Nature',scene:'flower',w:3000,h:3000,name:'macro-flower.jpg',date:'2026-05-30 11:20',size:'4.9 MB',cam:'Olympus OM-1',lens:'60mm Macro',iso:320,f:'f/5.6',s:'1/200s',fl:'60mm',fmt:'JPEG',dims:'3000 × 3000'},
+{id:'night-sky',folder:'Nature',scene:'night',w:6000,h:3375,name:'night-sky.jpg',date:'2026-05-18 23:47',size:'12.6 MB',cam:'Nikon Z8',lens:'NIKKOR 14-24mm',iso:3200,f:'f/2.8',s:'20s',fl:'14mm',fmt:'JPEG',dims:'6000 × 3375'},
+{id:'city-street',folder:'City',scene:'city',w:5472,h:3078,name:'city-street.jpg',date:'2026-04-11 20:33',size:'10.1 MB',cam:'Nikon Z8',lens:'NIKKOR 24-70mm',iso:1250,f:'f/2.8',s:'1/60s',fl:'35mm',fmt:'JPEG',dims:'5472 × 3078'},
+];
+const FOLDERS=[
+{id:'pc',name:'คอมพิวเตอร์เครื่องนี้',icon:'home',children:[
+  {id:'desktop',name:'เดสก์ท็อป',icon:'panel'},
+  {id:'docs',name:'เอกสาร',icon:'file'},
+  {id:'dl',name:'ดาวน์โหลด',icon:'down'},
+  {id:'pictures',name:'รูปภาพ',icon:'folder',children:[
+    {id:'trip',name:'Trip 2026',icon:'folder'},{id:'port',name:'Portraits',icon:'folder'},{id:'food',name:'Food',icon:'folder'},{id:'nature',name:'Nature',icon:'folder'},{id:'city',name:'City',icon:'folder'}
+  ]}
+]}
+];
+const FOLDERMAP={trip:'Trip 2026',port:'Portraits',food:'Food',nature:'Nature',city:'City',pictures:'รูปภาพ'};
+const ICONSX={home:I.home,folder:I.folder,folderopen:I.folderopen,panel:I.panel,file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',down:'<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/>'};
+
+/* ===================== state ===================== */
+const $=id=>document.getElementById(id);
+const svgIcon=icon=>`<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>`;
+(function(){document.body.innerHTML=document.body.innerHTML.replace(/\$\{I\.([a-zA-Z0-9_]+)\}/g,(m,k)=>svgIcon(I[k]||''));})();
+const uriCache={};
+function uriOf(img){if(!uriCache[img.id]){const s=SCENES[img.scene](img.w,img.h);uriCache[img.id]='data:image/svg+xml;utf8,'+encodeURIComponent(s);}return uriCache[img.id];}
+
+let S={
+  folder:'trip', theme:localStorage.getItem('fsv-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'), lang:localStorage.getItem('fsv-lang')||'en',
+  sel:[0], cur:0, sort:'name', desc:false, search:'', thumbsize:150,
+  preview:true, zoom:100, lens:false, info:false, tag:new Set(),
+  screen:'browser', rotate:{}, flip:{}, cropped:{}, md:{}, metaId:null
+};
+const app=document.getElementById('app');
+function setSwitch(id,on){const el=$(id);el.classList.toggle('on',on);el.setAttribute('aria-checked',on?'true':'false');}
+function applyTheme(){document.documentElement.dataset.theme=S.theme;const t=$('tb-theme');t.innerHTML=svgIcon(S.theme==='dark'?I.moon:I.theme);setSwitch('set-theme',S.theme==='dark');}
+/* ===================== i18n (TH / EN) ===================== */
+const EN={
+ 'ไฟล์':'File','แก้ไข':'Edit','มุมมอง':'View','เครื่องมือ':'Tools','แท็ก':'Tag','สร้าง':'Create','รายการโปรด':'Favorites','การตั้งค่า':'Settings','วิธีใช้':'Help',
+ 'เปิดไฟล์…':'Open…','เปิดในตัวแสดงภาพ':'Open in Viewer','บันทึกเป็น…':'Save As…','แปลงเป็นชุด…':'Batch Convert…','พิมพ์…':'Print…','ปิด':'Close',
+ 'ครอบตัด…':'Crop…','กระดานวาด…':'Draw Board…','หมุนขวา 90°':'Rotate Right 90°','หมุนซ้าย 90°':'Rotate Left 90°','หมุน 180°':'Rotate 180°','พลิกแนวนอน':'Flip Horizontal','พลิกแนวตั้ง':'Flip Vertical','หมุนภาพขวา 90°แล้ว (จำลอง)':'Image rotated right 90° (demo)','หมุนภาพซ้าย 90°แล้ว (จำลอง)':'Image rotated left 90° (demo)','หมุนภาพ 180°แล้ว (จำลอง)':'Image rotated 180° (demo)','พลิกแนวนอนแล้ว (จำลอง)':'Image flipped horizontally (demo)','พลิกแนวตั้งแล้ว (จำลอง)':'Image flipped vertically (demo)','ปรับแสง / สี / Curve…':'Adjust Light / Color / Curve…','ลบตาแดง…':'Remove Red-eye…',
+ 'แผงตัวอย่าง':'Preview','สไลด์โชว์':'Slideshow','โหมดเต็มจอ':'Fullscreen','การตั้งค่า…':'Settings…','แปลง / เปลี่ยนชื่อเป็นชุด…':'Convert / Batch Rename…','เปรียบเทียบภาพ…':'Compare Images…','จับภาพหน้าจอ':'Capture Screen','ติดต่อภาพ…':'Contact Sheet…','สร้างวอลเปเปอร์…':'Make Wallpaper…',
+ 'ติดแท็ก / ยกเลิกแท็ก':'Tag / Untag','กรองเฉพาะไฟล์ที่แท็ก':'Filter Tagged','รีเซ็ตแท็ก':'Reset Tags','สร้างอีเมลรูปภาพ…':'Create Image Email…','สร้าง PDF หลายหน้า…':'Create Multi-page PDF…','สร้างแผ่นติดต่อ…':'Create Contact Sheet…','เพิ่มโฟลเดอร์นี้เป็นรายการโปรด':'Add Folder to Favorites','พอร์ตเทรต':'Portrait','การตั้งค่าโปรแกรม…':'Program Settings…','สลับธีมสว่าง / มืด':'Toggle Light / Dark','วิธีใช้ (ตัวอย่าง)':'Help (Demo)','เกี่ยวกับ Image Viewer':'About Image Viewer',
+ 'เปิดไฟล์':'Open File','บันทึกเป็น':'Save As','ส่งอีเมล':'Email','คัดลอกไปยังโฟลเดอร์':'Copy to Folder','ย้ายไปยังโฟลเดอร์':'Move to Folder','ลบไฟล์':'Delete','เปลี่ยนชื่อ':'Rename','ครอบตัด (X)':'Crop (X)','กระดานวาด (D)':'Draw Board (D)','เปรียบเทียบภาพ':'Compare Images','แปลง / เปลี่ยนชื่อเป็นชุด':'Convert / Batch Rename','สไลด์โชว์ (F)':'Slideshow (F)','จับภาพหน้าจอ':'Capture Screen','กลับไปโฟลเดอร์ก่อนหน้า':'Back to Previous Folder','ขึ้นไปหนึ่งระดับ':'Up One Level','รีเฟรช':'Refresh','ค้นหาไฟล์…':'Search files…','แสดง/ซ่อนแผงตัวอย่าง (F8)':'Show/Hide Preview (F8)','การตั้งค่า (F12)':'Settings (F12)','สลับธีม':'Toggle Theme',
+ 'เรียงตาม':'Sort by','ชื่อ':'Name','วันที่ถ่าย':'Date','ขนาดไฟล์':'File Size','ชนิด':'Type','ทิศทางการเรียง':'Sort direction','ทิศทางการเรียง (มากไปน้อย)':'Sort direction (descending)','ทิศทางการเรียง (น้อยไปมาก)':'Sort direction (ascending)','ขนาดย่อ':'Thumbnail','ใหญ่':'Large','ฮิสโทแกรม':'Histogram','ข้อมูล EXIF':'EXIF Info','ตัวอย่าง':'Preview','นี่คือตัวอย่างการแสดงข้อมูลแบบจำลอง':'This is demo data to show the UI of this program',
+  'เลือกทั้งหมด (Ctrl+A)':'Select All (Ctrl+A)','เลือกตามชนิด…':'Select by Type…','เลือกตามช่วงวัน/เวลา…':'Select by Date/Time…','สลับการเลือก':'Invert Selection','ล้างการเลือก':'Clear Selection','เลือกทั้งหมดแล้ว':'All images selected','ล้างการเลือกแล้ว':'Selection cleared','สลับการเลือกแล้ว':'Selection inverted','เลือกชนิด ':'Selected type ',' แล้ว':'','เลือกตามช่วงวันแล้ว':'Selected by date range','วันนี้':'Today','7 วันล่าสุด':'Last 7 days','30 วันล่าสุด':'Last 30 days','เดือนนี้':'This month','ปีนี้':'This year','ทุกช่วงเวลา':'All time',
+ 'กด F12 เพื่อตั้งค่า':'Press F12 for settings','กลับไปโหมดเบราว์เซอร์':'Back to Browser','ข้อมูล / ฮิสโทแกรม (I)':'Info / Histogram (I)','ปิด (Esc)':'Close (Esc)','ก่อนหน้า (←)':'Previous (←)','ถัดไป (→)':'Next (→)','ซูมออก (−)':'Zoom Out (−)','ซูมเข้า (+)':'Zoom In (+)','พอดีจอ (9)':'Fit to Screen (9)','ขนาดจริง (0)':'Actual Size (0)','หมุนขวา 90°':'Rotate Right 90°','แว่นขยาย (M)':'Magnifier (M)','ซูม':'Zoom','ข้อมูลภาพ':'Image Info','ข้อมูล EXIF':'EXIF Info','ข้อมูล Metadata':'Metadata Info','ยังไม่มีข้อมูล Metadata':'No Metadata yet','ฮิสโทแกรม RGB':'RGB Histogram',
+ 'ข้อมูลทั้งหมดเป็นค่าจำลองเพื่อการสาธิต':'All values are demo data','ครอบตัดภาพ':'Crop Image','ยกเลิก (Esc)':'Cancel (Esc)','อัตราส่วน':'Aspect Ratio','ใช้การครอบตัด':'Apply Crop','ภาพที่กำลังครอบตัด':'Image being cropped','แสดงกฎสามส่วน':'Show Rule of Thirds',
+ 'ครอบตัดแล้ว':'Cropped (demo)','ซูมครอบตัด':'Crop Zoom',
+ 'กระดานวาด':'Draw Board','เลิกทำ (Ctrl+Z)':'Undo (Ctrl+Z)','ทำซ้ำ (Ctrl+Y)':'Redo (Ctrl+Y)','พิมพ์ข้อความ…':'Type text…','บันทึก':'Save','ภาพที่กำลังวาด':'Image being drawn','ข้อความ':'Text','เส้น':'Line','ลูกศร':'Arrow','สี่เหลี่ยม':'Rectangle','วงรี':'Ellipse','ปากกาเน้น':'Highlighter','บอลลูน':'Callout','ขนาด':'Size','ความทึบ':'Opacity','แถบเครื่องมือ':'Toolbar','เลือกปุ่มที่ต้องการแสดง':'Choose which buttons to show','ปรับแต่ง…':'Customize…','ปรับแต่งแถบเครื่องมือ':'Customize Toolbar','เลือกปุ่มที่ต้องการให้แสดงในแถบเครื่องมือ — ยกเลิกเพื่อซ่อน':'Pick buttons to show on the toolbar — uncheck to hide','คืนค่าเริ่มต้น':'Restore Defaults','บันทึกการจัดแต่งแถบเครื่องมือแล้ว':'Toolbar layout saved','คืนค่าเริ่มต้นแล้ว':'Restored to defaults','เปิดไฟล์':'Open File','ส่งอีเมล':'Email','คัดลอกไปยังโฟลเดอร์':'Copy to Folder','ย้ายไปยังโฟลเดอร์':'Move to Folder','ลบไฟล์':'Delete File','เปลี่ยนชื่อ':'Rename','หมุนขวา 90°':'Rotate Right 90°','ครอบตัด':'Crop','เปรียบเทียบภาพ':'Compare Images','แปลงเป็นชุด':'Batch Convert','สไลด์โชว์':'Slideshow','จับภาพหน้าจอ':'Capture Screen','ย้อนกลับ':'Back','ย้อนขึ้น':'Up','รีเฟรช':'Refresh','แผงตัวอย่าง':'Preview Pane','การตั้งค่า':'Settings','สลับธีม':'Toggle Theme',
+ 'แปลง / เปลี่ยนชื่อเป็นชุด':'Convert / Batch Rename','รูปแบบผลลัพธ์':'Output format','คุณภาพ (JPEG/WebP)':'Quality (JPEG/WebP)','ปรับขนาดภาพระหว่างแปลง':'Resize while converting','ความกว้าง (px)':'Width (px)','ความสูง (px)':'Height (px)','โฟลเดอร์ปลายทาง':'Destination folder','พร้อมแปลง':'Ready to convert','กำลังแปลง…':'Converting…','เสร็จสิ้น':'Done','แปลงไฟล์':'Convert Files','ยกเลิก':'Cancel','ปิด':'Close',
+ 'ต้นฉบับ':'Original','ไฟล์ใหม่':'New file','คุณภาพ JPEG':'JPEG quality — compare detail with original','ชื่อไฟล์':'File name','ชนิด':'Type','ชนิดไฟล์':'File type','โฟลเดอร์ปลายทาง':'Destination folder',
+ 'ธีม':'Theme','สว่าง / มืด ตามสไตล์ Windows':'Light / Dark, Windows style','แสดงตัวอย่าง':'Show preview','แผงตัวอย่าง':'Preview panel','หน้าต่างโปรแกรม':'Program window','จำลองหน้าต่างเดสก์ท็อป':'Simulate a desktop window','คืนค่าหน้าต่าง':'Restore Window','ภาษา':'Language','ไทย':'Thai','อังกฤษ':'English',
+ 'พื้นที่จัดเก็บ':'Storage','คอมพิวเตอร์เครื่องนี้':'This PC','เดสก์ท็อป':'Desktop','เอกสาร':'Documents','ดาวน์โหลด':'Downloads','รูปภาพ':'Pictures','ค้นหา':'Search','แท็ก':'Tag','ภาพ':'images','ไฟล์':'files','เลือก':'Selected','สไลด์':'slides','ของ':'of','โหมด':'mode','ไม่พบไฟล์ที่ตรงกับการค้นหา':'No files match your search',
+ 'ไม่มีภาพให้เปิด':'No image to open','ไม่มีภาพให้แปลง':'No image to convert','ไม่มีภาพให้แสดง':'No image to show','ต้องการอย่างน้อย 2 ภาพเพื่อเปรียบเทียบ':'At least 2 images are needed to compare','ไม่มีภาพ':'No images','กล้อง':'Camera','เลนส์':'Lens','รูรับแสง':'Aperture','ความเร็วชัตเตอร์':'Shutter Speed','ทางยาวโฟกัส':'Focal Length','วันที่ถ่าย':'Date Taken','มิติ':'Dimensions','ขนาด':'Size',
+ 'ข้อมูลภาพ (Metadata)…':'Image Info (Metadata)…','จัดการข้อมูลภาพ':'Manage Image Info','หัวข้อ':'Title','ผู้แต่ง':'Author','ผู้ถือลิขสิทธิ์':'Copyright','คำอธิบาย':'Description','แท็ก (คั่นด้วย ,)':'Tags (comma separated)','วันที่ถ่าย':'Date Taken','กล้อง':'Camera','เลนส์':'Lens','ค่าแสง':'Exposure','ISO':'ISO','ทางยาวโฟกัส':'Focal Length','รูปแบบ':'Format','ข้อมูลเดิม':'Original Data','บันทึกข้อมูลภาพ':'Save Image Info','บันทึกข้อมูลภาพแล้ว':'Image Info saved','ยกเลิกการแก้ไข':'Cancel Editing','ตั้งค่าจาก EXIF ใหม่':'Reset from EXIF','ล้าง metadata':'Clear metadata','คัดลอก metadata':'Copy metadata','วาง metadata':'Paste metadata','metadata ของภาพ':'image metadata',
+ 'หมวดหมู่':'Category','ประเทศ / สถานที่':'Country / Location','สถานที่':'Location','สัญญาอนุญาต (License)':'License','ผู้แต่ง / ช่างภาพ (Byline)':'Creator / Photographer (Byline)','มีใบยินยอมบุคคล (Model Release)':'Has Model Release','มีใบยินยอมทรัพย์สิน (Property Release)':'Has Property Release','แท็ก / คำค้น (คั่นด้วย ,)':'Tags / Keywords (comma separated)','พร้อมส่งสต็อค':'Ready for stock','ข้อมูลยังไม่ครบ':'Info incomplete','คำอธิบาย (Description)':'Description','รีเซ็ตไปที่ค่า EXIF เดิมแล้ว':'Reset to EXIF values','คำค้น':'Keywords','ควรมีอย่างน้อย':'should have at least','เว็บสต็อคต้องการอย่างน้อย':'stock sites require at least','คำ (สูงสุด 50)':'keywords (up to 50)','พร้อมส่งสต็อค':'Ready for stock','ยังไม่ครบ':'incomplete','มีใบยินยอม':'has release',
+};
+const REV=Object.fromEntries(Object.entries(EN).filter(([,v])=>typeof v==='string').map(([k,v])=>[v,k]));
+const escapeRx=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const keysTH=Object.keys(EN).filter(k=>k.length>1).sort((a,b)=>b.length-a.length);
+const keysEN=Object.keys(REV).filter(k=>k.length>1).sort((a,b)=>b.length-a.length);
+function t(s){if(S.lang!=='en')return s;const m={};keysTH.forEach(k=>{if(k!==s&&s.indexOf(k)>-1&&EN[k])m[k]=EN[k];});if(EN[s])return EN[s];let out=String(s);const ks=keysTH.filter(k=>out.indexOf(k)>-1);ks.forEach(k=>{out=out.split(k).join(EN[k]);});return out;}
+function tAtt(s){return S.lang==='en'?t(s):tTh(s);}
+function tTh(s){if(S.lang==='en')return s;let out=String(s);keysEN.forEach(k=>{if(REV[k]&&out.indexOf(k)>-1)out=out.split(k).join(REV[k]);});return out;}
+function applyLang(){document.documentElement.lang=S.lang==='en'?'en':'th';setSwitch('set-lang',S.lang==='en');localStorage.setItem('fsv-lang',S.lang);
+  renderFolders();renderThumbs();renderStatus();try{renderViewer();}catch(e){}translateStatic();}
+function translateStatic(){const isEn=S.lang==='en';
+  document.querySelectorAll('#app,body').forEach(root=>{
+    const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+    const seen=[];let n;while(n=w.nextNode()){const p=n.nodeValue;if(!p)continue;
+      const nt=(isEn?t:tTh)(p);if(nt!==p)seen.push([n,nt]);}
+    seen.forEach(([n,nt])=>n.nodeValue=nt);
+  });
+  const attrs=['data-tip','placeholder','aria-label','title','alt'];
+  document.querySelectorAll('#app [data-tip],#app [placeholder],#app [aria-label],#app [title],#app [alt]').forEach(el=>{
+    attrs.forEach(a=>{if(el.hasAttribute(a)){const v=el.getAttribute(a);const nv=(isEn?t:tTh)(v);if(nv!==v)el.setAttribute(a,nv);}});
+  });}
+function visibleImages(){let list=IMAGES.filter(m=>m.folder===FOLDERMAP[S.folder]||S.folder==='pictures');
+  if(S.search){const q=S.search.toLowerCase();list=list.filter(m=>m.name.toLowerCase().includes(q));}
+  const k=S.sort;const dir=S.desc?-1:1;
+  list.sort((a,b)=>{if(k==='name')return dir*a.name.localeCompare(b.name);if(k==='size')return dir*(parseFloat(a.size)-parseFloat(b.size));if(k==='type')return dir*a.fmt.localeCompare(b.fmt);return dir*(new Date(a.date)-new Date(b.date));});
+  return list;}
+function curImage(){const l=visibleImages();const i=Math.min(S.cur,l.length-1);return l[Math.max(0,i)];}
+
+/* ===================== toast ===================== */
+function toast(msg,icon=I.check){msg=(S.lang==='en'?t(msg):msg);const t=document.createElement('div');t.className='toast';t.innerHTML=svgIcon(icon)+'<span>'+msg+'</span>';$('toast').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),320);},2400);}
+
+/* ===================== render: folders ===================== */
+function folderNode(f,isRoot){const kids=f.children?f.children.map(c=>folderNode(c)).join(''):'';
+  const open=S.folder===f.id||S.folder==='pictures'&&f.id==='pictures';
+  return `<div class="folder-node ${S.folder===f.id?'sel':''}" data-folder="${f.id}">
+    ${f.children?`<span class="chev" style="transform:rotate(${open?90:0}deg);transition:transform .15s">${svgIcon(I.chevright)}</span>`:`<span style="width:12px"></span>`}
+    ${svgIcon(ICONSX[(f.icon==='folder'&&open)?'folderopen':(f.icon||'folder')]||I.folder)}
+    <span class="fn-name">${t(f.name)}</span>
+    <span class="fn-count">${f.count||''}</span></div>
+    ${f.children?`<div class="folder-children ${open?'':'hide'}" data-child="${f.id}">${kids}</div>`:''}`;}
+function renderFolders(){const countFor=name=>name==='รูปภาพ'?8:IMAGES.filter(m=>m.folder===name).length;
+  FOLDERS[0].children.forEach(c=>{if(c.children){const kids=[];c.children.forEach(k=>{k.count=countFor(k.name);});}});
+  $('folders').innerHTML=`<div class="panel-title"><span class="pt-icon">${svgIcon(I.drive)}</span>${t('พื้นที่จัดเก็บ')}</div>`+FOLDERS.map(f=>folderNode(f,true)).join('');}
+document.addEventListener('click',e=>{const node=e.target.closest('.folder-node');if(!node)return;
+  const id=node.dataset.folder;S.cur=0;S.sel=[0];S.folder=id;renderFolders();renderThumbs();renderStatus();});
+
+/* ===================== render: thumbs ===================== */
+function histoData(key,n=46){let a=0;for(let i=0;i<key.length;i++)a=(a*31+key.charCodeAt(i))>>>0;const nxt=()=>{a=(a*1664525+1013904223)>>>0;return a/4294967296;};
+  const mk=(peak,spread,hi)=>{const out=[];for(let i=0;i<n;i++){out.push(Math.max(0,Math.min(100,hi*Math.exp(-Math.pow((i-peak)/spread,2))+nxt()*12)));}return out;};
+  return {r:mk(n*0.28,n*0.14,88),g:mk(n*0.5,n*0.12,74),b:mk(n*0.62,n*0.16,70)};}
+function histoHTML(key){const d=histoData(key);const row=(arr,c)=>`<div class="histo-row ${c}">`+arr.map(v=>`<div class="hb" style="height:${v}%"></div>`).join('')+`</div>`;
+  return row(d.r,'h-r')+row(d.g,'h-g')+row(d.b,'h-b');}
+function renderThumbs(){const list=visibleImages();
+  $('thumbs-grid').innerHTML=list.length?list.map((m,i)=>{
+    const sel=S.sel.includes(i),tag=S.tag.has(m.id);
+    return `<div class="thumb ${sel?'sel':''}" data-i="${i}" data-id="${m.id}" data-od-id="thumb-${m.id}">
+      <img src="/api/projects/aece0269-607d-46c8-8d51-21426b3646e2/raw/%24%7BuriOf(m)%7D?workspaceId=w7igim8jiswzgw3gylrjqvhg&workspaceMemberId=azauw4nsj1nd8ygmq9hiwyar" alt="${m.name}" draggable="false">
+      <span class="thumb-idx">${i+1}</span>
+      <div class="thumb-tag ${tag?'on':''}" title="${t('แท็ก')}">${svgIcon(I.tag)}</div>
+      <div class="thumb-info">
+        <div class="thumb-name">${m.name}</div>
+        <div class="thumb-dims">${m.dims} · ${m.size}</div>
+      </div></div>`;}).join(''):`<div class="empty-state">${svgIcon(I.search)}<span>${t('ไม่พบไฟล์ที่ตรงกับการค้นหา')}</span></div>`;
+  const bar=$('crumbbar');
+  const trail=FOLDERMAP[S.folder]==='รูปภาพ'?['รูปภาพ']:[FOLDERMAP[S.folder]];
+  bar.innerHTML=`<span class="crumb">${svgIcon(I.home)} ${t('คอมพิวเตอร์เครื่องนี้')}</span><span class="crumb-sep">/</span><span class="crumb">${svgIcon(I.folder)} ${t(FOLDERMAP[S.folder]==='รูปภาพ'?'รูปภาพ':FOLDERMAP[S.folder])}</span><span class="crumb-sep">/</span><span class="crumb cur">${t(trail[trail.length-1])}</span>${svgIcon(I.chevright)}<span class="head-label" style="margin-left:auto;font-variant-numeric:tabular-nums">${t(list.length+' ไฟล์')}</span>`;
+  $('sort-select').value=S.sort;
+  $('thumbs-grid').onclick=e=>{
+    const thumb=e.target.closest('.thumb');
+    if(thumb){const i=+thumb.dataset.i;
+      if(e.ctrlKey||e.metaKey){S.sel=S.sel.includes(i)?S.sel.filter(x=>x!==i):[...S.sel,i];S.cur=i;}
+      else if(e.shiftKey){const last=Number.isInteger(S.cur)?S.cur:0;const lo=Math.min(last,i),hi=Math.max(last,i);for(let k=lo;k<=hi;k++)if(!S.sel.includes(k))S.sel.push(k);S.cur=i;}
+      else{S.sel=[i];S.cur=i;}
+      renderThumbs();renderPreview();renderStatus();
+      if(e.detail>=2){clearTimeout(META_POP_T);closeMetaPopover();openViewer(i);}
+      else if(!(e.ctrlKey||e.metaKey)){clearTimeout(META_POP_T);META_POP_T=setTimeout(()=>{showMetaPop(visibleImages()[i]);},260);}}
+  };
+  $('thumbs-grid').oncontextmenu=e=>{e.preventDefault();const t=e.target.closest('.thumb');if(!t)return;openCtx(e.clientX,e.clientY,+t.dataset.i);};
+  renderPreview();}
+
+/* ===================== preview pane ===================== */
+function renderPreview(){const m=visibleImages()[S.sel.length?S.sel[0]:0];if(!m){$('pv-name').textContent='—';return;}
+  $('pv-image').src=uriOf(m);$('pv-name').textContent=m.name;
+  const f=S.flip[m.id]||{h:false,v:false};$('pv-image').style.transform=`rotate(${(S.rotate[m.id]||0)%360}deg) scaleX(${f.h?-1:1}) scaleY(${f.v?-1:1})`;
+$('pv-sub').textContent=`${m.dims} px · ${m.size} · ${m.fmt}`;
+  $('pv-histo').innerHTML=histoHTML(m.id);
+  const md=metadataOf(m);
+  const exifRows=[['กล้อง',m.cam],['เลนส์',m.lens],['รูรับแสง',m.f],['ความเร็วชัตเตอร์',m.s],['ISO',m.iso],['ทางยาวโฟกัส',m.fl],['วันที่ถ่าย',m.date],['ขนาดไฟล์',m.size],['มิติ',m.dims],['ชนิด',m.fmt]];
+  const metaRowsFV=[];
+  if(md.title)metaRowsFV.push(['หัวข้อ',md.title]);if(md.author)metaRowsFV.push(['ผู้แต่ง',md.author]);
+  if(md.copyright)metaRowsFV.push(['ผู้ถือลิขสิทธิ์',md.copyright]);
+  if(md.category)metaRowsFV.push(['หมวดหมู่',md.category]);if(md.location)metaRowsFV.push(['สถานที่',md.location]);
+  if(md.tags)metaRowsFV.push(['แท็ก',md.tags]);if(md.desc)metaRowsFV.push(['คำอธิบาย',md.desc]);
+  if(md.license)metaRowsFV.push(['สิทธิ์การใช้งาน',md.license]);
+  if(md.date)metaRowsFV.push(['วันที่ถ่าย',md.date]);
+  const pvtab=$('pv-tabs').querySelector('.seg-btn.active');
+  const mode=pvtab&&pvtab.classList.contains('meta')?'meta':'exif';
+  renderPvTable(mode==='meta'?metaRowsFV:exifRows,mode);}
+function renderPvTable(rows,mode){$('pv-table-label').textContent=t(mode==='meta'?'ข้อมูล Metadata':'ข้อมูล EXIF');
+  $('pv-meta').innerHTML=rows.length?rows.map(r=>`<tr><td>${t(r[0])}</td><td>${r[1]}</td></tr>`).join():
+  `<tr><td colspan="2" style="color:var(--muted);border:none">${t('ยังไม่มีข้อมูล Metadata')}</td></tr>`;}
+
+/* thumbnail metadata popover */
+function metaRows(m){const md=metadataOf(m);const rows=[['ไฟล์',m.name],['ส่วนไฟล์',m.size],['มิติ',m.dims],['ชนิด',m.fmt],['วันที่ถ่าย',m.date]];
+  if(md.title)rows.push(['หัวข้อ',md.title]);if(md.author)rows.push(['ผู้แต่ง',md.author]);if(md.copyright)rows.push(['ผู้ถือลิขสิทธิ์',md.copyright]);
+  rows.push(['กล้อง',m.cam],['เลนส์',m.lens],['รูรับแสง',m.f],['ความเร็วชัดเตอร์',m.s],['ISO',m.iso],['ทางยาวโฟกัส',m.fl]);
+  if(md.category)rows.push(['หมวดหมู่',md.category]);if(md.location)rows.push(['สถานที่',md.location]);
+  if(md.tags)rows.push(['แท็ก',md.tags]);if(md.desc)rows.push(['คำอธิบาย',md.desc]);if(md.license)rows.push(['สิทธิ์การใช้งาน',md.license]);
+  if(md.model)rows.push(['โมเดล/บุคคลที่รับรอง','ใช่']);if(md.property)rows.push(['ทรัพย์สิน/ลิขสิทธิ์','ใช่']);return rows;}
+function fname(n){const i=n.lastIndexOf('.');return i>0?n.slice(0,i):n;}
+function showMetaPop(m){const el=$('meta-pop');if(!el)return;
+  const rows=metaRows(m);
+  el.innerHTML=`<div class="mp-head"><img src="/api/projects/aece0269-607d-46c8-8d51-21426b3646e2/raw/%24%7BuriOf(m)%7D?workspaceId=w7igim8jiswzgw3gylrjqvhg&workspaceMemberId=azauw4nsj1nd8ygmq9hiwyar" alt=""><div class="mp-titles"><div class="mp-name">${fname(m.name)}</div><div class="mp-sub">${m.dims} · ${m.size}</div></div>
+    <button class="mp-close" aria-label="ปิด">${svgIcon(I.x)}</button></div>
+    <div class="mp-body">${rows.map(r=>`<div class="mp-row"><span class="mp-k">${t(r[0])}</span><span class="mp-v">${r[1]}</span></div>`).join('')}
+    <button class="mp-open">${svgIcon(I.info)} ${t('เปิดข้อมูลภาพเต็ม')}</button></div>`;
+  el.classList.add('show');
+  const elr=el.getBoundingClientRect();
+  const grid=$('thumbs-grid').getBoundingClientRect();
+  let l=grid.left+16,r=grid.top+grid.height-elr.height-16;
+  const tr=grid.getBoundingClientRect();
+  l=Math.max(8,Math.min(tr.left+16,window.innerWidth-elr.width-8));
+  r=Math.max(8,Math.min(window.innerHeight-elr.height-8,r));
+  el.style.left=l+'px';el.style.top=r+'px';
+  el.querySelector('.mp-close').onclick=closeMetaPopover;
+  el.querySelector('.mp-open').onclick=()=>{closeMetaPopover();openMeta();};
+}
+function closeMetaPopover(){const el=$('meta-pop');clearTimeout(META_POP_T);if(el&&el.classList.contains('show'))el.classList.remove('show');}
+var META_POP_T=0;
+function renderStatus(){const l=visibleImages();const selSizes=S.sel.map(i=>l[i]).filter(Boolean).map(m=>parseFloat(m.size)).reduce((a,b)=>a+b,0);
+  $('sb-left').textContent=t(`${l.length} ไฟล์ · เลือก ${S.sel.length} ไฟล์ (${selSizes.toFixed(1)} MB)`);
+  $('sb-pos').textContent=t(`ภาพ ${Math.min(S.cur,l.length-1)+1}/${l.length}`);
+  $('sb-size').textContent=l[Math.min(S.cur,l.length-1)]?l[Math.min(S.cur,l.length-1)].size:'–';}
+
+/* ===================== batch selection ===================== */
+function selectIndices(idxs){S.sel=[...new Set(idxs)].filter(i=>i>=0&&i<visibleImages().length).sort((a,b)=>a-b);renderThumbs();renderStatus();}
+function selectAllImages(){selectIndices(visibleImages().map((_,i)=>i));toast(t('เลือกทั้งหมดแล้ว'));}
+function clearSelectionR(){selectIndices([]);toast(t('ล้างการเลือกแล้ว'));}
+function invertSelection(){const set=new Set(S.sel);selectIndices(visibleImages().map((_,i)=>(set.has(i)?-1:i)).filter(i=>i>=0));toast(t('สลับการเลือกแล้ว'));}
+function selectByType(fmt){selectIndices(visibleImages().map((m,i)=>(m.fmt===fmt?i:-1)).filter(i=>i>=0));toast(t('เลือกชนิด ') + fmt + t(' แล้ว'));}
+function parseImgDate(s){const m=String(s).match(/(\d{4})-(\d{2})-(\d{2})/);if(!m)return null;return new Date(+m[1],+m[2]-1,+m[3]);}
+function selectByDateRanges(sel){
+  const l=visibleImages(),now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const start=new Date(today),end=new Date(today);end.setDate(end.getDate()+1);
+  if(sel==='7d')start.setDate(start.getDate()-6);
+  else if(sel==='30d')start.setDate(start.getDate()-29);
+  else if(sel==='month'){start.setDate(1);end.setDate(1);end.setMonth(end.getMonth()+1);}
+  else if(sel==='year'){start.setMonth(0,1);end.setFullYear(now.getFullYear()+1,0,1);}
+  else if(sel==='all'){start.setFullYear(2000,0,1);end.setFullYear(2100,0,1);}
+  selectIndices(l.map((m,i)=>{const d=parseImgDate(m.date);return d&&d>=start&&d<end?i:-1;}).filter(i=>i>=0));
+  toast(t('เลือกตามช่วงวันแล้ว'));}
+function openSelMenu(kind,btn){
+  const l=visibleImages();
+  let defs;
+  if(kind==='type'){
+    const types=[...new Set(l.map(m=>m.fmt))];
+    defs=types.map(ft=>[ft,ft]);
+  }else{
+    defs=[['today','วันนี้'],['7d','7 วันล่าสุด'],['30d','30 วันล่าสุด'],['month','เดือนนี้'],['year','ปีนี้'],['all','ทุกช่วงเวลา']];
+  }
+  const rows=defs.map(d=>`<div class="menu-item" data-sel="${kind}" data-v="${d[0]}"><span class="mi-label">${t(d[1])}</span></div>`).join('');
+  const cw=$('ctxmenu');cw.innerHTML=rows;cw.classList.add('show');
+  const r=cw.getBoundingClientRect(),b=btn.getBoundingClientRect();
+  cw.style.left=Math.max(8,Math.min(b.left,window.innerWidth-r.width-12))+'px';
+  cw.style.top=Math.min(b.bottom+6,window.innerHeight-r.height-12)+'px';
+  cw.onclick=e=>{const it=e.target.closest('.menu-item[data-sel]');if(!it)return;cw.classList.remove('show');
+    if(kind==='type')selectByType(it.dataset.v);else selectByDateRanges(it.dataset.v);};}
+
+/* ===================== viewer ===================== */
+function openViewer(i){if(!visibleImages().length){toast('ไม่มีภาพให้เปิด');return;}S.cur=(i==null?S.cur:i);S.screen='viewer';clearTimeout(META_POP_T);closeMetaPopover();$('viewer').classList.add('show');renderViewer();renderStatus();}
+function closeViewer(){$('viewer').classList.remove('show');S.screen='browser';S.lens=false;$('v-lens').style.display='none';renderStatus();}
+function renderViewer(){const l=visibleImages();const m=l[Math.min(S.cur,l.length-1)];
+  $('v-image').src=uriOf(m);$('v-name').textContent=m.name;$('v-sub').textContent=`${Math.min(S.cur,l.length-1)+1}/${l.length} · ${m.dims}`;
+  $('v-info').classList.remove('show');$('vi-title').textContent=t('ข้อมูลภาพ — ')+m.name;
+  $('vi-histo').innerHTML=histoHTML(m.id);
+  const md=metadataOf(m);const rows=[];
+  if(md.title)rows.push(['หัวข้อ',md.title]);if(md.author)rows.push(['ผู้แต่ง',md.author]);
+  if(md.copyright)rows.push(['ผู้ถือลิขสิทธิ์',md.copyright]);
+  rows.push(['กล้อง',m.cam],['เลนส์',m.lens],['รูรับแสง',m.f],['ชัตเตอร์',m.s],['ISO',m.iso],['ทางยาวโฟกัส',m.fl],['วันที่ถ่าย',m.date],['ขนาด',m.size],['มิติ',m.dims],['ชนิด',m.fmt]);
+  if(md.category)rows.push(['หมวดหมู่',md.category]);if(md.location)rows.push(['สถานที่',md.location]);
+  if(md.tags)rows.push(['แท็ก',md.tags]);if(md.desc)rows.push(['คำอธิบาย',md.desc]);
+  $('vi-meta').innerHTML=rows.map(r=>`<tr><td>${t(r[0])}</td><td>${r[1]}</td></tr>`).join('');
+  $('v-film').innerHTML=l.map((x,idx)=>`<div class="film-item ${idx===Math.min(S.cur,l.length-1)?'cur':''}" data-i="${idx}"><img src="/api/projects/aece0269-607d-46c8-8d51-21426b3646e2/raw/%24%7BuriOf(x)%7D?workspaceId=w7igim8jiswzgw3gylrjqvhg&workspaceMemberId=azauw4nsj1nd8ygmq9hiwyar" alt="" draggable="false"></div>`).join('');
+  $('v-film').onclick=e=>{const f=e.target.closest('.film-item');if(f){S.cur=+f.dataset.i;renderViewer();}};
+  S.zoom=100;updateZoomUI();renderStatus();}
+function setZoom(z,atCursor){z=Math.max(10,Math.min(400,z));S.zoom=z;updateZoomUI(atCursor);}
+function vTransform(m){const r=Math.max(0,(S.rotate[m.id]||0)%360),f=S.flip[m.id]||{h:false,v:false};
+  return `rotate(${r}deg) scaleX(${f.h?-1:1}) scaleY(${f.v?-1:1}) scale(${S.zoom/100})`;}
+function updateZoomUI(atCursor){const img=$('v-image');img.style.transform=vTransform(curImage());
+  const slider=$('v-zoomslider');slider.value=S.zoom;$('v-zoom').textContent=Math.round(S.zoom)+'%';
+  $('v-wrap').style.alignItems=S.zoom>100?'flex-start':'center';$('v-wrap').style.justifyContent=S.zoom>100?'flex-start':'center';}
+function rotateImage(m,mode){if(!m)return;const r=S.rotate[m.id]||0;const f=S.flip[m.id]||(S.flip[m.id]={h:false,v:false});
+  if(mode==='cw')S.rotate[m.id]=(r+90)%360;else if(mode==='ccw')S.rotate[m.id]=(r+270)%360;
+  else if(mode==='180')S.rotate[m.id]=(r+180)%360;else if(mode==='fh')f.h=!f.h;else if(mode==='fv')f.v=!f.v;
+  updateZoomUI();renderThumbs();renderPreview();}
+$('v-zoomin').onclick=()=>setZoom(S.zoom+25);$('v-zoomout').onclick=()=>setZoom(S.zoom-25);
+$('v-zoomslider').oninput=e=>setZoom(+e.target.value);
+$('v-fit').onclick=()=>setZoom(100);$('v-100').onclick=()=>setZoom(100);
+$('v-prev').onclick=()=>nav(-1);$('v-next').onclick=()=>nav(1);
+function nav(d){const l=visibleImages();S.cur=(S.cur+d+l.length)%l.length;renderViewer();renderStatus();}
+$('v-rotate').onclick=()=>{rotateImage(curImage(),'cw');toast('หมุนภาพขวา 90°แล้ว (จำลอง)');};
+$('v-rotate-ccw').onclick=()=>{rotateImage(curImage(),'ccw');toast('หมุนภาพซ้าย 90°แล้ว (จำลอง)');};
+$('v-flip-h').onclick=()=>{rotateImage(curImage(),'fh');toast('พลิกแนวนอนแล้ว (จำลอง)');};
+$('v-flip-v').onclick=()=>{rotateImage(curImage(),'fv');toast('พลิกแนวตั้งแล้ว (จำลอง)');};
+$('v-close').onclick=closeViewer;$('v-back').onclick=closeViewer;$('v-slideshow').onclick=startSlideshow;
+$('v-info-toggle').onclick=()=>{$('v-info').classList.toggle('show');S.info=!S.info;};
+$('v-magnify').onclick=()=>{S.lens=!S.lens;$('v-lens').style.display=S.lens?'block':'none';$('v-magnify').classList.toggle('active',S.lens);};
+$('v-theme').onclick=()=>{S.theme=S.theme==='dark'?'light':'dark';localStorage.setItem('fsv-theme',S.theme);applyTheme();};
+// viewer toolbar
+$('vt-open').onclick=()=>toast('เปิดไฟล์ (ตัวอย่าง)');
+$('vt-saveas').onclick=openSaveAs;$('vt-print').onclick=()=>toast('ส่งไปพิมพ์ (ตัวอย่าง)');
+$('vt-crop').onclick=()=>openCrop();$('vt-draw').onclick=()=>openDraw();
+$('vt-convert').onclick=openConvert;
+// stage interactions
+const stage=$('v-stage'),wrap=$('v-wrap'),imgEl=$('v-image'),lensEl=$('v-lens');
+let holdTimer=null;
+function holdCancel(){clearTimeout(holdTimer);}
+stage.onwheel=e=>{e.preventDefault();e.deltaY<0?nav(-1):nav(1);};
+stage.onmousemove=e=>{const b=imgEl.getBoundingClientRect();
+  if(S.lens){const lw=170;const z=3;lensEl.style.display='block';
+    const bx=e.clientX-lw/2,by=e.clientY-lw/2;
+    lensEl.style.left=bx+'px';lensEl.style.top=by+'px';
+    lensEl.style.backgroundImage=`url(/api/projects/aece0269-607d-46c8-8d51-21426b3646e2/raw/%24%7BimgEl.src%7D?workspaceId=w7igim8jiswzgw3gylrjqvhg&workspaceMemberId=azauw4nsj1nd8ygmq9hiwyar)`;
+    const sc=(S.zoom/100)||1;lensEl.style.backgroundSize=`${(b.width/sc)*z}px ${(b.height/sc)*z}px`;
+    lensEl.style.backgroundPosition=`${-(e.clientX-b.left)*z+lw/2}px ${-(e.clientY-b.top)*z+lw/2}px`;}
+  if(e.clientX>b.left-8&&e.clientX<b.left+b.width+8&&e.clientY>b.top-8&&e.clientY<b.top+b.height+8){stage.style.cursor=S.zoom>100?'grab':'default';}};
+stage.onmousedown=e=>{if(e.button!==0)return;holdTimer=setTimeout(()=>{setZoom(100);toast('ซูม 100%');},380);};
+stage.onmouseup=stage.onmouseleave=()=>{holdCancel();lensEl.style.display='none';};
+stage.ondblclick=()=>{holdCancel();closeViewer();};
+stage.oncontextmenu=e=>{if(visibleImages().length){e.preventDefault();holdCancel();openCtx(e.clientX,e.clientY,S.cur);}};
+
+/* ===================== context menu ===================== */
+function openCtx(x,y,i){const l=visibleImages();const m=l[i];
+  const items=[['viewer','เปิดในตัวแสดงภาพ','Enter','eye'],['crop','ครอบตัด…','X','crop'],['draw','กระดานวาด…','D','pen'],['sep','',''],['meta','ข้อมูลภาพ (Metadata)…','','info'],['sep','',''],['rotate-cw','หมุนขวา 90°','','rotate'],['rotate-ccw','หมุนซ้าย 90°','','rotateCcw'],['rotate-180','หมุน 180°','','rotate'],['flip-h','พลิกแนวนอน','','fliph'],['flip-v','พลิกแนวตั้ง','','flipv'],['sep','',''],['rename','เปลี่ยนชื่อ','','rename'],['delete','ลบไฟล์','','trash'],['sep','',''],['copy','คัดลอกไปยังโฟลเดอร์…','','copy'],['convert','แปลงเป็นชุด…','','convert'],['sep','',''],['slideshow','เริ่มสไลด์โชว์จากที่นี่','','play']];
+  $('ctxmenu').innerHTML=items.map(it=>it[0]==='sep'?'<div class="menu-item sep"></div>':`<div class="menu-item" data-a="${it[0]}" data-i="${i}">${it[3]?svgIcon(I[it[3]]):''}<span class="mi-label">${t(it[1])}</span><span class="mi-kbd">${it[2]||''}</span></div>`).join('');
+  $('ctxmenu').classList.add('show');
+  const cw=$('ctxmenu');const r=cw.getBoundingClientRect();
+  cw.style.left=Math.min(x,window.innerWidth-r.width-12)+'px';cw.style.top=Math.min(y,window.innerHeight-r.height-12)+'px';
+  cw.onclick=e=>{const it=e.target.closest('.menu-item');if(!it)return;$('ctxmenu').classList.remove('show');
+    const a=it.dataset.a,i=+it.dataset.i;
+    if(a==='viewer')openViewer(i);else if(a==='crop')openCrop(i);else if(a==='draw')openDraw(i);
+    else if(a==='meta')openMeta(i);
+    else if(a==='rotate-cw'){rotateImage(m,'cw');toast('หมุนภาพขวา 90°แล้ว (จำลอง)');}
+    else if(a==='rotate-ccw'){rotateImage(m,'ccw');toast('หมุนภาพซ้าย 90°แล้ว (จำลอง)');}
+    else if(a==='rotate-180'){rotateImage(m,'180');toast('หมุนภาพ 180°แล้ว (จำลอง)');}
+    else if(a==='flip-h'){rotateImage(m,'fh');toast('พลิกแนวนอนแล้ว (จำลอง)');}
+    else if(a==='flip-v'){rotateImage(m,'fv');toast('พลิกแนวตั้งแล้ว (จำลอง)');}
+    else if(a==='delete'){toast('ลบไฟล์แล้ว (จำลอง)');}
+    else if(a==='rename'){const nn=prompt('ชื่อใหม่:',m.name);if(nn)m.name=nn.trim(),renderThumbs(),renderStatus();}
+    else if(a==='copy')toast('คัดลอกไปยังโฟลเดอร์ปลายทางแล้ว (จำลอง)');
+    else if(a==='convert')openConvert();
+    else if(a==='slideshow'){S.cur=i;startSlideshow();}};}
+document.addEventListener('click',e=>{if(!e.target.closest('#ctxmenu'))$('ctxmenu').classList.remove('show');});
+
+/* ===================== metadata editor ===================== */
+const STOCK_CATS=['Abstract','Animals/Wildlife','Architecture','Backgrounds/Textures','Business','Beauty/Fashion','Food/Drink','Health/Medical','Holidays','Industry','Lifestyle','Nature','Objects','Outdoor/Recreation','People','Science','Sports','Technology','Transportation','Travel'];
+const STOCK_LICS=[['','—'],['Royalty-Free','Royalty-Free (RF)'],['Editorial','Editorial Only'],['Exclusive','Exclusive to Agency']];
+const STOCK_READY={title:2,desc:20,tags:7};
+function metaCats(){const c=$('meta-category');c.innerHTML=`<option value="">—</option>`+STOCK_CATS.map(x=>`<option value="${x}">${x}</option>`).join('');}
+function metaLics(){const l=$('meta-license');l.innerHTML=STOCK_LICS.map(x=>`<option value="${x[0]}">${x[1]}</option>`).join('');}
+function metadataOf(m){return Object.assign({title:'',author:'',copyright:'',tags:'',desc:'',category:'',location:'',license:'Royalty-Free',model:false,property:false},S.md[m.id]||{});}
+function defaultMeta(m){return {title:m.name,author:'',copyright:'Photographer · Yiam',tags:'',desc:'',category:'',location:'',license:'Royalty-Free',model:false,property:false};}
+function resetMeta(m){const name=$('#meta-name');const d=defaultMeta(m);const t=m.date&&m.date.split(' ')[0];d.date=t;S.md[m.id]=d;fillMetaForm(m);toast('รีเซ็ตไปที่ค่า EXIF เดิมแล้ว');}
+function openMeta(i){const l=visibleImages();const m=l[i==null?S.sel[0]:+i];if(!m){toast('ไม่มีภาพให้จัดการ');return;}
+  S.sel=[i==null?S.sel[0]:+i];S.metaId=m.id;if(!S.md[m.id])S.md[m.id]=(function(){const d=defaultMeta(m);const t=m.date&&m.date.split(' ')[0];d.date=t;return d;})();
+  metaCats();metaLics();const w=$('meta-dialog');w.classList.add('show');fillMetaForm(m);translateStatic();}
+function fillMetaForm(m){const md=S.md[m.id];
+  $('#meta-name').textContent=m.name;
+  $('#meta-sub').dataset.base=`${m.dims} · ${m.size} · ${m.fmt}`;
+  $('#meta-sub').textContent=$('#meta-sub').dataset.base;
+  $('#meta-title').value=md.title||'';$('#meta-author').value=md.author||'';
+  $('#meta-copyright').value=md.copyright||'';$('#meta-date').value=md.date||'';
+  $('#meta-tags').value=md.tags||'';$('#meta-desc').value=md.desc||'';
+  $('#meta-category').value=md.category||'';$('#meta-location').value=md.location||'';
+  $('#meta-license').value=md.license||'Royalty-Free';
+  $('#meta-model-release').checked=!!md.model;$('#meta-property-release').checked=!!md.property;
+  const rows=[['กล้อง',m.cam],['เลนส์',m.lens],['ค่าแสง',`${m.f} ${m.s} ISO ${m.iso}`],['ทางยาวโฟกัส',m.fl],['รูปแบบ',m.fmt],['วันที่ถ่าย',md.date||m.date]];
+  $('#meta-exif').innerHTML=rows.map(r=>`<tr><td>${t(r[0])}</td><td>${r[1]}</td></tr>`).join('');
+  updateMetaReadiness();}
+function metaTagsArr(s){return String(s||'').split(/[,;，、]+/).map(x=>x.trim()).filter(Boolean);}
+function updateMetaReadiness(){const title=$('#meta-title').value.trim();const desc=$('#meta-desc').value.trim();const tags=metaTagsArr($('#meta-tags').value);
+  const hasCat=!!$('#meta-category').value;const mr=$('#meta-model-release').checked||$('#meta-property-release').checked;
+  $('#meta-title-hint').textContent=`${title.length}/100 · ควรมีอย่างน้อย ${STOCK_READY.title} ตัวขึ้นไป`;
+  $('#meta-tags-hint').textContent=`${tags.length} คำค้น · เว็บสต็อคต้องการอย่างน้อย ${STOCK_READY.tags} คำ (สูงสุด 50)`;
+  const items=[['หัวข้อ',title.length>=STOCK_READY.title],['คำอธิบาย',desc.length>=STOCK_READY.desc],['คำค้น',tags.length>=STOCK_READY.tags],['หมวดหมู่',hasCat],['Release',mr]];
+  $('#meta-readiness').innerHTML=items.map(x=>`<span class="stock-item ${x[1]?'ok':''}"><i class="dot"></i>${t(x[0])}${x[1]?'':' · ยังไม่ครบ'}</span>`).join('');
+  const ready=title.length>=STOCK_READY.title&&desc.length>=STOCK_READY.desc&&tags.length>=STOCK_READY.tags&&hasCat;
+  $('#meta-sub').textContent=`${$('#meta-sub').dataset.base||'—'} · ${ready?'พร้อมส่งสต็อค':'ข้อมูลยังไม่ครบ'}`;}
+function saveMeta(){const m=(visibleImages()||[]).find(x=>x.id===S.metaId)||curImage();if(!m){toast('ไม่มีภาพให้บันทึก');return;}
+  S.md[m.id]={title:$('#meta-title').value.trim(),author:$('#meta-author').value.trim(),copyright:$('#meta-copyright').value.trim(),
+    date:$('#meta-date').value.trim(),tags:$('#meta-tags').value.trim(),desc:$('#meta-desc').value.trim(),
+    category:$('#meta-category').value,location:$('#meta-location').value.trim(),license:$('#meta-license').value,
+    model:$('#meta-model-release').checked,property:$('#meta-property-release').checked};
+  $('#meta-dialog').classList.remove('show');
+  renderPreview();renderViewer();renderThumbs();renderStatus();toast('บันทึกข้อมูลภาพแล้ว');}
+['meta-title','meta-desc','meta-tags','meta-category'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('input',updateMetaReadiness);});
+['meta-model-release','meta-property-release'].forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('change',updateMetaReadiness);});
+
+/* ===================== crop board ===================== */
+let cropState={ratio:null,zoom:100};
+const RATIOS=[['เดิม',null],['1:1',1],['4:3',4/3],['3:2',3/2],['16:9',16/9],['9:16',9/16]];
+function openCrop(i){if(!visibleImages().length){toast('ไม่มีภาพให้เปิด');return;}S.cur=i??S.cur;const m=curImage();
+  $('crop-img').src=uriOf(m);$('crop-board').classList.add('show');cropState.ratio=null;
+  $('crop-img').onload=()=>layoutCrop();
+  $('crop-ratios').innerHTML=RATIOS.map(r=>`<button class="chip ${r[1]===null?'sel':''}" data-ratio="${r[1]??'orig'}">${r[0]}</button>`).join('');
+  $('crop-ratios').onclick=e=>{const c=e.target.closest('.chip');if(!c)return;
+    [...$('crop-ratios').children].forEach(x=>x.classList.remove('sel'));c.classList.add('sel');
+    cropState.ratio=c.dataset.ratio==='orig'?null:+c.dataset.ratio;layoutCrop();};
+  layoutCrop();}
+function layoutCrop(){const stage=$('crop-stage'),img=$('crop-img');requestAnimationFrame(()=>{
+  if(!img.naturalWidth)return;
+  const sw=stage.clientWidth,sh=stage.clientHeight;const z=cropState.zoom/100;
+  const iw=Math.min(sw*0.94,sw*z),ih=iw/img.naturalWidth*img.naturalHeight;
+  img.style.width=iw+'px';img.style.height=ih+'px';
+  const left=(sw-iw)/2,top=(sh-ih)/2;img.style.position='absolute';img.style.left=left+'px';img.style.top=top+'px';
+  const rect=$('crop-rect');cropState.imgRatio=ih/iw;let rw=iw*0.8,rh=rw*(cropState.ratio?1/cropState.ratio:cropState.imgRatio);
+  if(rh>ih*0.8){rh=ih*0.8;rw=rh*(cropState.ratio?cropState.ratio:iw/ih);}
+  rect.style.left=(left+iw*0.1)+'px';rect.style.top=(top+ih*0.1)+'px';rect.style.width=rw+'px';rect.style.height=rh+'px';
+  rect.style.transform='';
+  rect.style.zIndex='10';updateCropDims();});}
+function updateCropDims(){const rect=$('crop-rect'),img=$('crop-img');const scale=img.naturalWidth/img.clientWidth;
+  const px=Math.round(rect.clientWidth*scale);$('crop-dims').textContent=`${px} × ${Math.round(rect.clientHeight*scale)} px`;}
+$('crop-zoom').oninput=e=>{cropState.zoom=+e.target.value;$('crop-zoom-label').textContent=cropState.zoom+'%';layoutCrop();};
+$('crop-thirds').onclick=()=>{const rect=$('crop-rect');const on=rect.style.backgroundImage!=='none'&&rect.dataset.thirds==='1';
+  rect.dataset.thirds=on?'0':'1';$('crop-thirds').classList.toggle('active',!on);
+  rect.style.backgroundImage=!on?'linear-gradient(90deg,transparent 33.33%,oklch(100% 0 0/.5) 33.33%,oklch(100% 0 0/.5) 33.66%,transparent 33.66%,transparent 66.33%,oklch(100% 0 0/.5) 66.33%,oklch(100% 0 0/.5) 66.66%,transparent 66.66%),linear-gradient(0deg,transparent 33.33%,oklch(100% 0 0/.5) 33.33%,oklch(100% 0 0/.5) 33.66%,transparent 33.66%,transparent 66.33%,oklch(100% 0 0/.5) 66.33%,oklch(100% 0 0/.5) 66.66%,transparent 66.66%)':'none';};
+// drag crop rect
+(function(){const rect=$('crop-rect');let sx,sy,srx,sry,dragging=false,resizing=false;
+  rect.addEventListener('pointerdown',e=>{e.preventDefault();dragging=true;resizing=(e.target===rect&&e.offsetX>rect.clientWidth-16&&e.offsetY>rect.clientHeight-16);
+    sx=e.clientX;sy=e.clientY;srx=rect.offsetLeft;sry=rect.offsetTop;rect.setPointerCapture(e.pointerId);});
+  rect.addEventListener('pointermove',e=>{if(!dragging)return;const dx=e.clientX-sx,dy=e.clientY-sy;
+    const stage=$('crop-stage');const prx=stage.clientWidth,psy=stage.clientHeight;
+    if(resizing){let nw=srx+dx;nw=Math.max(80,Math.min(nw,prx-rect.offsetLeft));rect.style.width=nw+'px';
+      rect.style.height=(nw/(cropState.ratio||cropState.imgRatio||1))+'px';}
+    else{rect.style.left=Math.max(0,Math.min(srx+dx,prx-rect.clientWidth))+'px';rect.style.top=Math.max(0,Math.min(sry+dy,psy-rect.clientHeight))+'px';}
+    updateCropDims();});
+  rect.addEventListener('pointerup',()=>{dragging=false;});})();
+$('crop-apply').onclick=()=>{const m=curImage();S.cropped[m.id]={area:'80% × 60%'};closeBoard('crop-board');toast('ครอบตัดแล้ว (ตัวอย่าง) เก็บไว้ในโฟลเดอร์เดิม');};
+
+/* ===================== draw board ===================== */
+const DRAW_TOOLS=[['tool-text','ข้อความ'],['tool-line','เส้น'],['tool-arrow','ลูกศร'],['tool-rect','สี่เหลี่ยม'],['tool-ellipse','วงรี'],['tool-highlight','ปากกาเน้น'],['tool-callout','บอลลูน']];
+const DRAW_COLORS=['#e5484d','#ff9e2c','#ffd23f','#30a46c','#2f6feb','#8e5bd0','#111111','#ffffff','#1a1a1a'];
+let draw={tool:'tool-line',color:'#e5484d',width:3,opacity:1,stack:[],redo:[],curIdx:null};
+function openDraw(i){if(!visibleImages().length){toast('ไม่มีภาพให้เปิด');return;}S.cur=i??S.cur;const m=curImage();
+  $('draw-img').src=uriOf(m);$('draw-board').classList.add('show');
+  draw.stack=[];draw.redo=[];
+  function layoutDraw(){const stage=$('draw-stage');const img=$('draw-img');
+    if(!img.naturalWidth){img.onload=layoutDraw;return;}
+    const iw=Math.min(stage.clientWidth*0.94,stage.clientHeight*0.94*img.naturalWidth/img.naturalHeight);
+    img.style.width=iw+'px';img.style.height='auto';
+    const left=(stage.clientWidth-iw)/2,top=(stage.clientHeight-img.clientHeight)/2;
+    img.style.position='absolute';img.style.left=left+'px';img.style.top=top+'px';
+    const cv=$('draw-canvas');cv.width=img.clientWidth;cv.height=img.clientHeight;
+    cv.style.position='absolute';cv.style.left=left+'px';cv.style.top=top+'px';cv.style.cursor='crosshair';}
+  layoutDraw();
+  $('draw-tools').innerHTML=DRAW_TOOLS.map(([ic,name])=>`<button class="tool-btn ${draw.tool===ic?'active':''}" data-tool="${ic}" data-tip="${name}" aria-label="${name}">${svgIcon(I[ic])}</button>`).join('');
+  $('draw-tools').onclick=e=>{const b=e.target.closest('[data-tool]');if(!b)return;draw.tool=b.dataset.tool;
+    [...$('draw-tools').children].forEach(x=>x.classList.toggle('active',x===b));$('text-overlay').style.display='none';};
+  $('draw-colors').innerHTML=DRAW_COLORS.map((c,idx)=>`<button class="swatch ${c===draw.color?'sel':''}" data-c="${idx}" style="background:${c}" title="${c}" aria-label="สี ${c}"></button>`).join('');
+  $('draw-colors').onclick=e=>{const s=e.target.closest('.swatch');if(!s)return;draw.color=DRAW_COLORS[+s.dataset.c];
+    [...$('draw-colors').children].forEach(x=>x.classList.toggle('sel',x===s));};}
+const cv=$('draw-canvas');
+function snapshot(){draw.stack.push(cv.toDataURL());if(draw.stack.length>30)draw.stack.shift();draw.redo=[];}
+function drawShape(type,x0,y0,x1,y1,color,w){const ctx=cv.getContext('2d');ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w;ctx.lineCap='round';ctx.lineJoin='round';ctx.globalAlpha=draw.opacity;
+  switch(type){case 'tool-line':ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();break;
+  case 'tool-arrow':{const a=Math.atan2(y1-y0,x1-x0),hl=Math.min(16,w*2.6);ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x1-hl*Math.cos(a-0.5),y1-hl*Math.sin(a-0.5));ctx.lineTo(x1-hl*Math.cos(a+0.5),y1-hl*Math.sin(a+0.5));ctx.closePath();ctx.fill();break;}
+  case 'tool-rect':ctx.strokeRect(Math.min(x0,x1),Math.min(y0,y1),Math.abs(x1-x0),Math.abs(y1-y0));break;
+  case 'tool-ellipse':ctx.beginPath();ctx.ellipse((x0+x1)/2,(y0+y1)/2,Math.abs(x1-x0)/2,Math.abs(y1-y0)/2,0,0,Math.PI*2);ctx.stroke();break;
+  case 'tool-highlight':ctx.globalAlpha=draw.opacity*.38;ctx.strokeStyle=color;ctx.lineWidth=w*5;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();break;
+  case 'tool-callout':ctx.beginPath();ctx.ellipse((x0+x1)/2,(y0+y1)/2,Math.abs(x1-x0)/2,Math.abs(y1-y0)/2,0,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(x1-6,y1-4);ctx.lineTo(x1-2,y1+10);ctx.lineTo(x1-16,y1-2);ctx.closePath();ctx.fill();break;}
+  ctx.globalAlpha=1;}
+(function(){let drawing=false,sx=0,sy=0;
+  cv.addEventListener('pointerdown',e=>{e.preventDefault();drawing=true;sx=e.offsetX;sy=e.offsetY;
+    if(draw.tool==='tool-text'){const ov=$('text-overlay');const inp=$('text-input');ov.style.display='block';
+      ov.style.left=(cv.offsetLeft+sx)+'px';ov.style.top=(cv.offsetTop+sy)+'px';inp.value='';inp.focus();
+      inp.onkeydown=ev=>{if(ev.key==='Enter'){snapshot();const ctx=cv.getContext('2d');ctx.globalAlpha=draw.opacity;ctx.font=`600 ${draw.width*7}px 'Segoe UI',sans-serif`;ctx.fillStyle=draw.color;ctx.fillText(inp.value||'ข้อความ',sx,sy+draw.width*6);ctx.globalAlpha=1;
+        ov.style.display='none';drawing=false;}if(ev.key==='Escape'){ov.style.display='none';drawing=false;}};return;}
+    snapshot();const c=cv.getContext('2d');c.strokeStyle=draw.color;c.fillStyle=draw.color;c.lineWidth=draw.width;c.lineCap='round';});
+  cv.addEventListener('pointermove',e=>{if(!drawing)return;if(draw.tool==='tool-line'||draw.tool==='tool-arrow'||draw.tool==='tool-rect'||draw.tool==='tool-ellipse'){cv.getContext('2d').clearRect(0,0,cv.width,cv.height);restoreTop();}
+    if(draw.tool==='tool-text')return;const c=cv.getContext('2d');
+    if(draw.tool==='tool-highlight'){const c2=cv.getContext('2d');c2.globalAlpha=draw.opacity*.38;c2.strokeStyle=draw.color;c2.lineWidth=draw.width*5;c2.beginPath();c2.moveTo(sx,sy);c2.lineTo(e.offsetX,e.offsetY);c2.stroke();c2.globalAlpha=1;}
+    else if(draw.tool==='tool-callout'){drawShape('tool-ellipse',sx,sy,e.offsetX,e.offsetY,draw.color,draw.width);c.beginPath();c.moveTo(e.offsetX-6,e.offsetY-4);c.lineTo(e.offsetX-2,e.offsetY+10);c.lineTo(e.offsetX-16,e.offsetY-2);c.closePath();c.fill();}
+    else drawShape(draw.tool,sx,sy,e.offsetX,e.offsetY,draw.color,draw.width);});
+  function restoreTop(){const top=draw.stack.length?draw.stack[draw.stack.length-1]:null;const c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);if(top){const im=new Image();im.onload=()=>c.drawImage(im,0,0);im.src=top;}}
+  cv.addEventListener('pointerup',()=>{drawing=false;});
+  const defaultRestore=restoreTop;
+  // make restore available for undo
+  window.__drawRestore=()=>{const top=draw.stack.length?draw.stack[draw.stack.length-1]:null;const c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);if(top){const im=new Image();im.onload=()=>c.drawImage(im,0,0);im.src=top;}};
+})();
+$('draw-undo').onclick=()=>{const top=draw.stack.pop();if(top)draw.redo.push(top);window.__drawRestore();};
+$('draw-redo').onclick=()=>{const r=draw.redo.pop();if(r){snapshotNoPush();const im=new Image();im.onload=()=>{const c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);c.drawImage(im,0,0);};im.src=r;}};
+function snapshotNoPush(){if(draw.stack.length>30)draw.stack.shift();}
+$('draw-width').oninput=e=>{draw.width=+e.target.value;$('draw-width-label').textContent=draw.width;};
+$('draw-opacity').oninput=e=>{draw.opacity=(+e.target.value)/100;$('draw-opacity-label').textContent=e.target.value+'%';};
+$('draw-save').onclick=()=>{closeBoard('draw-board');toast('บันทึกภาพพร้อมคำอธิบายแล้ว (ตัวอย่าง)');};
+
+/* ===================== dialogs ===================== */
+function openConvert(){const l=visibleImages();if(!l.length){toast('ไม่มีภาพให้แปลง');return;}$('convert-list').innerHTML=l.map((m,i)=>`<div class="file-row ${S.sel.includes(i)?'checked':''}" data-i="${i}">
+  <input type="checkbox" ${S.sel.includes(i)?'checked':''} data-i="${i}"><span class="f-icon">${svgIcon(I.image)}</span>
+  <span class="f-name">${m.name}</span><span class="f-size">${m.size}</span></div>`).join('');
+  const listEl=$('convert-list');
+  listEl.onchange=e=>{const c=e.target.closest('input[type=checkbox]');if(c)c.parentElement.classList.toggle('checked',c.checked);};
+  $('convert-dialog').classList.add('show');$('convert-state').textContent='พร้อมแปลง';$('convert-progress').style.width='0%';}
+$('convert-quality').oninput=e=>{$('convert-quality-label').textContent=e.target.value+'%';};
+$('convert-resize').onchange=e=>{$('convert-resize-row').style.display=e.target.checked?'flex':'none';};
+$('convert-run').onclick=()=>{const count=[...$('convert-list').querySelectorAll('input:checked')].length||1;
+  const fmt=$('convert-format').value;$('convert-state').textContent='กำลังแปลง…';
+  let p=0;const int=setInterval(()=>{p+=Math.random()*22+6;if(p>=100){p=100;clearInterval(int);
+    $('convert-state').textContent='เสร็จสิ้น';setTimeout(()=>{closeModal('convert-dialog');toast(`แปลงไฟล์ ${count} ไฟล์เป็น ${fmt} แล้ว (ตัวอย่าง)`);},600);}
+    $('convert-progress').style.width=Math.min(p,100)+'%';},140);};
+$('saveas-quality').oninput=e=>{const q=+e.target.value;const est=((parseFloat(curImage().size)*q/100)).toFixed(1)+' MB';
+  $('saveas-new-size').textContent=est;$('saveas-new').style.filter=`blur(${(100-q)/12}px) saturate(${0.4+q/140})`;};
+function openSaveAs(){const m=curImage();$('saveas-orig').src=uriOf(m);$('saveas-new').src=uriOf(m);
+  $('saveas-orig-size').textContent=m.size;$('saveas-new-size').textContent=m.size;$('saveas-new').style.filter='none';
+  $('saveas-name').value=m.name.replace(/\.\w+$/,'')+'-copy.jpg';$('saveas-dialog').classList.add('show');}
+$('saveas-run').onclick=()=>{closeModal('saveas-dialog');toast('บันทึกไฟล์แล้ว (ตัวอย่าง)');};
+$('meta-save').onclick=saveMeta;$('meta-reset').onclick=()=>{const m=(visibleImages()||[]).find(x=>x.id===S.metaId);if(m)resetMeta(m);toast('รีเซ็ตไปที่ค่า EXIF เดิมแล้ว');};
+$('meta-dialog').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.target.closest('textarea')){e.preventDefault();saveMeta();}});
+function openCompare(){const l=visibleImages();if(l.length<2){toast('ต้องการอย่างน้อย 2 ภาพเพื่อเปรียบเทียบ');return;}
+  S.sel=[0,1];renderThumbs();toast('โหมดเปรียบเทียบ: เลือก 2 ภาพและดับเบิลคลิก (จำลอง)');}
+
+/* ===================== slideshow ===================== */
+let ssInterval=null,ssIdx=0,ssPlaying=true;
+function startSlideshow(){if(!visibleImages().length){toast('ไม่มีภาพให้แสดง');return;}if(!ssInterval){ssInterval=setInterval(()=>{if(ssPlaying&&document.getElementById('slideshow').classList.contains('show'))ssAdvance(1);},3500);}
+  $('slideshow').classList.add('show');ssIdx=S.cur;ssPlaying=true;$('ss-play').innerHTML=svgIcon(I.pause);ssRender();}
+function ssRender(){const l=visibleImages();const m=l[Math.min(ssIdx,l.length-1)];
+  const stage=$('ss-stage');const im=document.createElement('img');im.src=uriOf(m);stage.appendChild(im);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>im.classList.add('ss-cur')));
+  stage.querySelectorAll('img:not(.ss-cur)').forEach(o=>setTimeout(()=>o.remove(),650));
+  $('ss-pos').textContent=`${Math.min(ssIdx,l.length-1)+1}/${l.length}`;$('ss-slider').max=l.length;$('ss-slider').value=Math.min(ssIdx,l.length-1)+1;}
+function ssAdvance(d){const l=visibleImages();ssIdx=(ssIdx+d+l.length)%l.length;ssRender();}
+$('ss-play').onclick=()=>{ssPlaying=!ssPlaying;$('ss-play').innerHTML=svgIcon(ssPlaying?I.pause:I.play);};
+$('ss-next').onclick=()=>ssAdvance(1);$('ss-prev').onclick=()=>ssAdvance(-1);$('ss-close').onclick=()=>{$('slideshow').classList.remove('show');};
+$('ss-slider').oninput=e=>{ssIdx=+e.target.value-1;ssRender();};
+
+/* ===================== modals & helpers ===================== */
+function closeModal(id){$(id).classList.remove('show');}
+function closeBoard(id){$(id).classList.remove('show');}
+document.addEventListener('click',e=>{
+  const mm=e.target.closest('.menu-btn');
+  if(mm){document.querySelectorAll('.menu-panel').forEach(p=>p.classList.remove('show'));document.querySelectorAll('.menu-btn').forEach(b=>b.classList.remove('open'));
+    const p=$(mm.dataset.menu);p.classList.toggle('show');mm.classList.toggle('open',p.classList.contains('show'));
+    if(p.classList.contains('show')){p.style.left=mm.offsetLeft+'px';p.style.top=(mm.offsetTop+mm.offsetHeight-4)+'px';
+      const pr=p.getBoundingClientRect();if(pr.right>window.innerWidth-8)p.style.left=Math.max(8,window.innerWidth-pr.width-8)+'px';}return;}
+  const dt=e.target.closest('.dialog-title svg');if(dt){const md=dt.closest('.modal');if(md)md.classList.remove('show');return;}
+  if(!e.target.closest('.menu-panel')){document.querySelectorAll('.menu-panel').forEach(p=>p.classList.remove('show'));document.querySelectorAll('.menu-btn').forEach(b=>b.classList.remove('open'));}
+  const mi=e.target.closest('.menu-item');if(mi){const a=mi.dataset.act;if(a)doAction(a);}
+  const close=e.target.closest('[data-act="modal-close"]');if(close)closeModal(close.dataset.target);
+  const bc=e.target.closest('[data-act="board-close"]');if(bc)closeBoard(bc.dataset.target);
+  if(e.target.closest('#settings-panel')===null&&e.target.closest('#tb-settings')===null&&e.target.closest('#settings-close')===null)$('settings-panel').classList.remove('show');
+});
+function doAction(a){if(a==='open')toast('เปิดไฟล์ (ตัวอย่าง)');else if(a==='viewer')openViewer();
+  else if(a==='saveas')openSaveAs();else if(a==='convert')openConvert();else if(a==='print')toast('ส่งไปพิมพ์ (ตัวอย่าง)');
+  else if(a==='close')winClose();else if(a==='crop')openCrop();else if(a==='draw')openDraw();
+  else if(a==='rotate-cw'){rotateImage(curImage(),'cw');toast('หมุนภาพขวา 90°แล้ว (จำลอง)');}
+  else if(a==='rotate-ccw'){rotateImage(curImage(),'ccw');toast('หมุนภาพซ้าย 90°แล้ว (จำลอง)');}
+  else if(a==='rotate-180'){rotateImage(curImage(),'180');toast('หมุนภาพ 180°แล้ว (จำลอง)');}
+  else if(a==='flip-h'){rotateImage(curImage(),'fh');toast('พลิกแนวนอนแล้ว (จำลอง)');}
+  else if(a==='flip-v'){rotateImage(curImage(),'fv');toast('พลิกแนวตั้งแล้ว (จำลอง)');}
+  else if(a==='toggle-preview')togglePreview();else if(a==='slideshow')startSlideshow();
+  else if(a==='fullview'){toast('โหมดเต็มจอจำลอง');}
+  else if(a==='settings')$('settings-panel').classList.toggle('show');
+  else if(a==='theme')toggleTheme();else if(a==='compare')openCompare();
+  else if(a==='tag'){const m=curImage();if(S.tag.has(m.id))S.tag.delete(m.id);else S.tag.add(m.id);renderThumbs();toast(S.tag.has(m.id)?'ติดแท็กแล้ว':'ยกเลิกแท็กแล้ว');}
+  else if(a==='view-close')closeViewer();
+  else if(a==='zoom-in')setZoom(S.zoom+25);else if(a==='zoom-out')setZoom(S.zoom-25);
+  else if(a==='fit'||a==='v-100')setZoom(100);
+  else if(a==='v-info'){$('v-info').classList.toggle('show');S.info=!S.info;}
+  else if(a==='v-mag'){S.lens=!S.lens;$('v-lens').style.display=S.lens?'block':'none';$('v-magnify').classList.toggle('active',S.lens);}
+  else if(a==='meta')openMeta(S.cur);
+  else if(a==='ss-play'){$('ss-play').click();}else if(a==='ss-next')ssAdvance(1);else if(a==='ss-prev')ssAdvance(-1);
+  else if(a==='toast-empty')toast('ฟีเจอร์นี้อยู่ในตัวอย่าง (ยังไม่เปิดใช้งาน)');}
+function togglePreview(){S.preview=!S.preview;const main=$('main');main.classList.toggle('has-preview',S.preview);setSwitch('set-preview',S.preview);
+  main.querySelector('#preview').style.display=S.preview?'flex':'none';}
+function toggleTheme(){S.theme=S.theme==='dark'?'light':'dark';localStorage.setItem('fsv-theme',S.theme);applyTheme();}
+function toggleLang(){S.lang=S.lang==='en'?'th':'en';applyLang();}
+function winClose(){const t=document.createElement('div');toast('ปิดหน้าต่างตัวอย่างแล้ว — คลิกปุ่ม "คืนค่าหน้าต่าง" ในการตั้งค่า');$('set-restore').style.display='inline-flex';}
+
+/* ===================== keyboard ===================== */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){const ov=$('slideshow');if(ov.classList.contains('show')){ov.classList.remove('show');return;}
+    if($('viewer').classList.contains('show'))return closeViewer();
+    if($('crop-board').classList.contains('show'))return closeBoard('crop-board');
+    if($('draw-board').classList.contains('show'))return closeBoard('draw-board');
+    if($('text-overlay').style.display==='block'){$('text-overlay').style.display='none';return;}
+    if($('convert-dialog').classList.contains('show'))return closeModal('convert-dialog');
+    if($('saveas-dialog').classList.contains('show'))return closeModal('saveas-dialog');
+    if($('meta-dialog').classList.contains('show'))return closeModal('meta-dialog');
+    $('settings-panel').classList.remove('show');$('ctxmenu').classList.remove('show');return;}
+  if($('text-overlay').style.display==='block')return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT'||e.target.tagName==='TEXTAREA')return;
+  const screen=$('viewer').classList.contains('show')?'viewer':($('crop-board').classList.contains('show')?'crop':($('draw-board').classList.contains('show')?'draw':'browser'));
+  if(e.key==='ArrowRight'){if(screen==='viewer')nav(1);else if(screen==='crop'){S.cur=(S.cur+1)%visibleImages().length;openCrop(S.cur);}}
+  if(e.key==='ArrowLeft'){if(screen==='viewer')nav(-1);else if(screen==='crop'){S.cur=(S.cur-1+visibleImages().length)%visibleImages().length;openCrop(S.cur);}}
+  if(e.key==='+'||e.key==='='){if(screen==='viewer')setZoom(S.zoom+25);e.preventDefault();}
+  if(e.key==='-'){if(screen==='viewer')setZoom(S.zoom-25);e.preventDefault();}
+  if(e.key==='0'){if(screen==='viewer')setZoom(100);}
+  if(e.key==='9'){if(screen==='viewer')setZoom(100);}
+  if(e.key.toLowerCase()==='m'&&screen==='viewer')$('v-magnify').click();
+  if(e.key.toLowerCase()==='i'&&screen==='viewer')$('v-info-toggle').click();
+  if(e.key==='F8'){togglePreview();}
+  if(e.key.toLowerCase()==='x'&&screen==='browser')openCrop();
+  if(e.key.toLowerCase()==='d'&&screen==='browser')openDraw();
+  if(e.key.toLowerCase()==='q'&&screen==='browser'){doAction('tag');}
+  if(e.key==='F12'){e.preventDefault();$('settings-panel').classList.toggle('show');}
+  if(e.key==='F'&&screen==='browser')startSlideshow();
+  if(e.key==='Enter'&&screen==='browser')openViewer();
+  if(e.key==='Delete'&&screen==='browser'){toast('ลบไฟล์ที่เลือกแล้ว (จำลอง)');}
+  if(e.key.toLowerCase()==='c'&&(e.ctrlKey||e.metaKey)&&screen==='browser'){e.preventDefault();openCompare();}
+  if((e.key==='a'||e.key==='A')&&(e.ctrlKey||e.metaKey)&&screen==='browser'){e.preventDefault();selectAllImages();}
+  if((e.key==='b'||e.key==='B')&&(e.ctrlKey||e.metaKey)&&e.shiftKey&&screen==='browser'){e.preventDefault();openConvert();}
+});
+
+/* ===================== toolbar wiring ===================== */
+$('tb-open').onclick=()=>toast('เปิดไฟล์ (ตัวอย่าง)');$('tb-saveas').onclick=openSaveAs;$('tb-print').onclick=()=>toast('ส่งไปพิมพ์ (ตัวอย่าง)');
+$('tb-email').onclick=()=>toast('สร้างอีเมลพร้อมแนบภาพ (ตัวอย่าง)');$('tb-copy').onclick=()=>toast('คัดลอกไปยังโฟลเดอร์ปลายทางแล้ว (จำลอง)');
+$('tb-move').onclick=()=>toast('ย้ายไปยังโฟลเดอร์ปลายทางแล้ว (จำลอง)');$('tb-delete').onclick=()=>toast('ลบไฟล์ที่เลือกแล้ว (จำลอง)');
+$('tb-rename').onclick=()=>toast('เลือกไฟล์แล้วกด F2 เพื่อเปลี่ยนชื่อ');$('tb-rotate').onclick=()=>{rotateImage(curImage(),'cw');toast('หมุนภาพขวา 90°แล้ว (จำลอง)');};
+$('tb-crop').onclick=()=>openCrop();$('tb-draw').onclick=()=>openDraw();$('tb-compare').onclick=openCompare;
+$('tb-convert').onclick=openConvert;$('tb-slideshow').onclick=startSlideshow;$('tb-capture').onclick=()=>toast('เครื่องมือจับภาพหน้าจอ (ตัวอย่าง)');
+$('tb-prev').onclick=()=>{S.folder='pictures';S.cur=0;renderFolders();renderThumbs();renderStatus();};
+$('tb-up').onclick=()=>{S.folder='pictures';S.cur=0;renderFolders();renderThumbs();renderStatus();};
+$('tb-refresh').onclick=()=>{renderThumbs();renderStatus();toast('รีเฟรชโฟลเดอร์แล้ว');};
+$('tb-preview-toggle').onclick=togglePreview;$('tb-settings').onclick=()=>$('settings-panel').classList.toggle('show');$('tb-theme').onclick=toggleTheme;
+$('search-input').oninput=e=>{S.search=e.target.value;S.cur=0;S.sel=[0];renderThumbs();renderStatus();};
+$('thumb-size').oninput=e=>{S.thumbsize=+e.target.value;document.documentElement.style.setProperty('--thumb',S.thumbsize+'px');$('thumb-size-label').textContent=S.thumbsize;};
+$('sort-dir').onclick=()=>{S.desc=!S.desc;const b=$('sort-dir');b.dataset.tip=S.desc?'ทิศทางการเรียง (มากไปน้อย)':'ทิศทางการเรียง (น้อยไปมาก)';b.classList.toggle('active',S.desc);renderThumbs();};
+$('sel-all').onclick=()=>{const n=visibleImages().length;(S.sel.length===n?clearSelectionR:selectAllImages)();};
+$('sel-clear').onclick=()=>clearSelectionR();
+$('sel-invert').onclick=()=>invertSelection();
+$('sel-type').onclick=e=>{e.stopPropagation();openSelMenu('type',e.currentTarget);};
+$('sel-date').onclick=e=>{e.stopPropagation();openSelMenu('date',e.currentTarget);};
+
+/* ===================== customize toolbar ===================== */
+const TB_DEFS=[
+  {id:'tb-open',name:'เปิดไฟล์',icon:'open'},
+  {id:'tb-saveas',name:'บันทึกเป็น',icon:'save'},
+  {id:'tb-print',name:'พิมพ์',icon:'print'},
+  {id:'tb-email',name:'ส่งอีเมล',icon:'mail'},
+  {id:'tb-copy',name:'คัดลอกไปยังโฟลเดอร์',icon:'copy'},
+  {id:'tb-move',name:'ย้ายไปยังโฟลเดอร์',icon:'move'},
+  {id:'tb-delete',name:'ลบไฟล์',icon:'trash'},
+  {id:'tb-rename',name:'เปลี่ยนชื่อ',icon:'rename'},
+  {id:'tb-rotate',name:'หมุนขวา 90°',icon:'rotate'},
+  {id:'tb-crop',name:'ครอบตัด',icon:'crop'},
+  {id:'tb-draw',name:'กระดานวาด',icon:'pen'},
+  {id:'tb-compare',name:'เปรียบเทียบภาพ',icon:'compare'},
+  {id:'tb-convert',name:'แปลงเป็นชุด',icon:'convert'},
+  {id:'tb-slideshow',name:'สไลด์โชว์',icon:'play'},
+  {id:'tb-capture',name:'จับภาพหน้าจอ',icon:'camera'},
+  {id:'tb-prev',name:'ย้อนกลับ',icon:'chevleft'},
+  {id:'tb-up',name:'ย้อนขึ้น',icon:'up'},
+  {id:'tb-refresh',name:'รีเฟรช',icon:'refresh'},
+  {id:'tb-preview-toggle',name:'แผงตัวอย่าง',icon:'panel'},
+  {id:'tb-settings',name:'การตั้งค่า',icon:'gear'},
+  {id:'tb-theme',name:'สลับธีม',icon:'theme'}
+];
+const TB_FIXED=new Set(['tb-search','tb-spacer']); /* non-customizable containers */
+localStorage.removeItem('fsv-toolbar');
+S.toolbar=new Set(TB_DEFS.map(d=>d.id));
+function applyToolbar(){TB_DEFS.forEach(d=>{const el=document.getElementById(d.id);if(!el)return;el.style.display=S.toolbar.has(d.id)?'':'none';});}
+function renderTbCustom(){const list=$('tb-custom-list');
+  list.innerHTML=TB_DEFS.map(d=>`<label class="checkrow"><input type="checkbox" data-id="${d.id}" ${S.toolbar.has(d.id)?'checked':''}>${svgIcon(I[d.icon])}<span>${t(d.name)}</span></label>`).join('');
+  translateStatic();}
+function openTbCustom(){$('tb-custom-dialog').classList.add('show');renderTbCustom();}
+$('set-customize').onclick=openTbCustom;
+$('tb-custom-save').onclick=()=>{const checks=[...$('tb-custom-list').querySelectorAll('input[type=checkbox]')];
+  S.toolbar=new Set(checks.filter(c=>c.checked).map(c=>c.dataset.id));
+  localStorage.setItem('fsv-toolbar',JSON.stringify([...S.toolbar]));applyToolbar();closeModal('tb-custom-dialog');toast('บันทึกการจัดแต่งแถบเครื่องมือแล้ว');};
+$('tb-custom-restore').onclick=()=>{S.toolbar=new Set(TB_DEFS.map(d=>d.id));localStorage.setItem('fsv-toolbar',JSON.stringify([...S.toolbar]));
+  renderTbCustom();applyToolbar();toast('คืนค่าเริ่มต้นแล้ว');};
+
+/* settings */
+$('set-theme').onclick=toggleTheme;$('set-preview').onclick=togglePreview;$('set-lang').onclick=toggleLang;
+$('set-thumbsize').oninput=e=>{S.thumbsize=+e.target.value;document.documentElement.style.setProperty('--thumb',S.thumbsize+'px');$('thumb-size').value=S.thumbsize;};
+$('set-restore').onclick=()=>{toast('หน้าต่างกลับสู่สถานะปกติ (ตัวอย่าง)');$('set-restore').style.display='none';};
+$('settings-close').onclick=()=>$('settings-panel').classList.remove('show');
+/* resizable panels */
+function panelWidth(g){const c=g.getBoundingClientRect();return g.id==='rp-grip-f'?c.right:c.left;}
+function initResizer(gripId,prop,minI,maxI,vkey){
+  const g=$(gripId);const main=$('main');const vname='--'+prop;if(!g||!main)return;
+  const clamp=v=>Math.max(minI,Math.min(maxI,v));
+  const read=()=>{const p=parseFloat(main.style.getPropertyValue(vname));return p>0?p:(g.id==='rp-grip-f'?224:296);};
+  let startX=0,startW=0,active=false;
+  g.addEventListener('pointerdown',e=>{e.preventDefault();g.setPointerCapture(e.pointerId);active=true;
+    startX=e.clientX;startW=read();});
+  g.addEventListener('pointermove',e=>{if(!active)return;const dx=e.clientX-startX;
+    const w=g.id==='rp-grip-f'?startW+dx:startW-dx;main.style.setProperty(vname,clamp(w)+'px');});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(ev=>g.addEventListener(ev,()=>{if(!active)return;active=false;
+    localStorage.setItem(vkey,read());}));}
+function applyPanelSizes(){const main=$('main');
+  const fw=parseFloat(localStorage.getItem('fsv-fw'));if(fw&&fw>=140)main.style.setProperty('--folders-w',Math.min(fw,320)+'px');
+  const pw=parseFloat(localStorage.getItem('fsv-pw'));if(pw&&pw>=200)main.style.setProperty('--preview-w',Math.min(pw,400)+'px');}
+initResizer('rp-grip-f','folders-w',140,320,'fsv-fw');initResizer('rp-grip-p','preview-w',200,400,'fsv-pw');applyPanelSizes();
+$('pv-tabs').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{$('pv-tabs').querySelectorAll('.seg-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderPreview();});
+$('win-min').onclick=()=>{toast('ย่อเล็กสุด (ตัวอย่าง UI)');};
+$('win-max').onclick=()=>{document.body.classList.toggle('maxed');toast('สลับขนาดหน้าต่าง (ตัวอย่าง)');};
+$('win-close').onclick=winClose;
+
+/* init */
+applyTheme();setSwitch('set-preview',S.preview);document.documentElement.style.setProperty('--thumb',S.thumbsize+'px');
+applyToolbar();
+document.querySelectorAll('[data-tip]:not([aria-label])').forEach(el=>el.setAttribute('aria-label',el.dataset.tip));
+$('sort-select').addEventListener('change',e=>{S.sort=e.target.value;renderThumbs();translateStatic();});
+document.addEventListener('click',e=>{if($('meta-pop').classList.contains('show')&&!e.target.closest('#meta-pop'))closeMetaPopover();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMetaPopover();});
+applyLang();
+</script>
+</body>
+</html>
