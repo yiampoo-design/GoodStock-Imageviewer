@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Backgrounds -->
+    <SolidColorBrush x:Key="BgBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="BgAltBrush" Color="#F6F8FA"/>
+    <SolidColorBrush x:Key="BgCanvasBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="BgInstructBrush" Color="#F3F4F6"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="#D1D9E0"/>
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F2328"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#656D76"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#8B949E"/>
+
+    <!-- Accent -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#1A7F37"/>
+    <SolidColorBrush x:Key="AccentFgBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#1C8C3A"/>
+
+    <!-- Buttons -->
+    <SolidColorBrush x:Key="BtnBgBrush" Color="#F6F8FA"/>
+    <SolidColorBrush x:Key="BtnHoverBgBrush" Color="#EAECF0"/>
+    <SolidColorBrush x:Key="BtnActiveBgBrush" Color="#0969DA"/>
+
+    <!-- Gutter / Muted -->
+    <SolidColorBrush x:Key="GutterBrush" Color="#F6F8FA"/>
+    <SolidColorBrush x:Key="MutedFgBrush" Color="#AAB0B8"/>
+
+    <!-- Folder -->
+    <SolidColorBrush x:Key="FolderThumbBgBrush" Color="#FFF8E1"/>
+    <SolidColorBrush x:Key="FolderBorderBrush" Color="#B8860B"/>
+
+    <!-- Status colors -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="#1A7F37"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="#9A6700"/>
+    <SolidColorBrush x:Key="ErrorBrush" Color="#CF222E"/>
+    <SolidColorBrush x:Key="InfoBrush" Color="#0969DA"/>
+
+    <!-- Metadata Panel -->
+    <SolidColorBrush x:Key="MetaKeyBrush" Color="#656D76"/>
+    <SolidColorBrush x:Key="MetaValueBrush" Color="#1F2328"/>
+
+    <!-- Overlay -->
+    <SolidColorBrush x:Key="OverlayBgBrush" Color="#CCEEEEEE"/>
+
+</ResourceDictionary>
