@@ -1,4 +1,4 @@
-# WpfApp1 -- GoodStock Image Viewer
+# GoodStock Image Viewer
 
 WPF image viewer with EXIF metadata read/write via ExifTool.
 
@@ -18,7 +18,7 @@ WPF image viewer with EXIF metadata read/write via ExifTool.
 ## Architecture
 
 ```
-WpfApp1/
+GoodStock-Imageviewer/
   ExifToolRunner.cs        -- Run ExifTool process with UTF-8 argument file
   ExifToolService.cs       -- Discover, download, verify ExifTool binary
   MainWindow.xaml/.cs      -- Main UI, EXIF Info tab, Metadata tab
@@ -232,7 +232,7 @@ var result = await ExifToolRunner.RunAsync(...);
 
 ### 6. ExifTool Binary Lifecycle
 
-- **Discovery:** Search 2 locations -- `{AppDir}/tools/` and `%LOCALAPPDATA%/WpfApp1/tools/`
+- **Discovery:** Search 2 locations -- `{AppDir}/tools/` and `%LOCALAPPDATA%/GoodStock/tools/`
 - **Download:** From SourceForge with manual redirect validation (max 8 hops)
 - **Verification:** SHA-256 hash must match pinned hash
 - **Atomic Install:** Create stage directory, extract, verify, swap directory (with backup/rollback)
