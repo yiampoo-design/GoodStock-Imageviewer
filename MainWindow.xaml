@@ -663,7 +663,7 @@
                         </Viewbox>
                     </Button>
                     <!-- Crop -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Crop (C)" x:Name="BtnCrop" Click="BtnCrop_Click">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Crop (C) — Coming soon" x:Name="BtnCrop" Click="BtnCrop_Click" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M6.13 1 6 16a2 2 0 002 2h15 M1 6.13 16 6a2 2 0 012 2v15"
@@ -673,7 +673,7 @@
                         </Viewbox>
                     </Button>
                     <!-- Draw -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Draw (B)" x:Name="BtnDraw" Click="BtnDraw_Click">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Draw (B) — Coming soon" x:Name="BtnDraw" Click="BtnDraw_Click" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M12 19l7-7 3 3-7 7-3-3z M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z M2 2l7.586 7.586"
@@ -1109,15 +1109,6 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <!-- In-place rename TextBox overlay -->
-                    <TextBox x:Name="RenameTextBox" Visibility="Collapsed"
-                             Background="{StaticResource BgInstructBrush}"
-                             Foreground="{StaticResource TextPrimaryBrush}"
-                             BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
-                             FontSize="12" FontWeight="Medium" Padding="2"
-                             MaxWidth="140" HorizontalContentAlignment="Left"
-                             KeyDown="RenameTextBox_KeyDown"
-                             LostFocus="RenameTextBox_LostFocus"/>
                     </Grid>
                 </Grid>
 

@@ -18,6 +18,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using Microsoft.Win32;
 using Directory = System.IO.Directory;
+using Microsoft.VisualBasic.FileIO;
 
 namespace WpfApp1
 {
@@ -60,10 +61,12 @@ namespace WpfApp1
         private bool _isMiddleDrag;
         private Point _lastMiddleDragPoint;
         private double _savedZoomBeforeMiddleDrag;
+        private bool _isInViewer;
 
         private string _sortBy = "name";
         private bool _sortAscending = true;
         private string? _exifToolPath;
+        private CancellationTokenSource? _metadataCts;
 
         private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
             { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".tif", ".webp", ".heic", ".ico" };
@@ -242,7 +245,7 @@ namespace WpfApp1
             UpdateFolderIcon(item, true);
             if (item.Items.Count != 1 || !(item.Items[0] is TreeViewItem t) || t.Tag?.ToString() != "__dummy__") return;
 
-            string path = item.Tag?.ToString();
+            string? path = item.Tag?.ToString();
             if (string.IsNullOrEmpty(path) || !Directory.Exists(path)) return;
 
             item.Items.Clear();
@@ -451,7 +454,7 @@ namespace WpfApp1
             }
         }
 
-        private static BitmapSource CreateCompositeThumbnail(List<string> imagePaths)
+        private static BitmapSource? CreateCompositeThumbnail(List<string> imagePaths)
         {
             int gridSize = 2;
             int cellSize = 100;
@@ -818,6 +821,10 @@ namespace WpfApp1
 
         private async void LoadExifData(string path)
         {
+            _metadataCts?.Cancel();
+            _metadataCts = new CancellationTokenSource();
+            var ct = _metadataCts.Token;
+
             ExifCamera.Text = "—";
             ExifFocalLength.Text = "—";
             ExifFStop.Text = "—";
@@ -834,6 +841,7 @@ namespace WpfApp1
             try
             {
                 var metadata = await ReadMetadataWithExifToolAsync(path);
+                if (ct.IsCancellationRequested) return;
                 if (metadata == null) { ExifNoData.Visibility = Visibility.Visible; return; }
 
                 var make = GetJsonString(metadata, "Make");
@@ -877,7 +885,7 @@ namespace WpfApp1
             }
         }
 
-        private void LoadHistogram(string path)
+        private async void LoadHistogram(string path)
         {
             var red = new double[] { 60, 80, 45, 70, 55, 35 };
             var green = new double[] { 50, 70, 55, 65, 45, 30 };
@@ -891,66 +899,75 @@ namespace WpfApp1
 
             try
             {
-                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                var ext = Path.GetExtension(path).ToLowerInvariant();
-                BitmapDecoder decoder = ext switch
+                var (r, g, b) = await Task.Run(() =>
                 {
-                    ".jpg" or ".jpeg" => new JpegBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                    ".png" => new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                    ".tiff" or ".tif" => new TiffBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                    ".bmp" => new BmpBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                    ".gif" => new GifBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                    _ => null
-                };
-                if (decoder == null || decoder.Frames.Count == 0)
-                {
-                    SetHistogramBars(red, green, blue);
-                    return;
-                }
-                var frame = decoder.Frames[0];
-
-                var formatted = new FormatConvertedBitmap(frame, PixelFormats.Bgra32, null, 0);
-                var pixels = new byte[formatted.PixelWidth * formatted.PixelHeight * 4];
-                formatted.CopyPixels(pixels, formatted.PixelWidth * 4, 0);
-
-                var rHist = new int[256];
-                var gHist = new int[256];
-                var bHist = new int[256];
-                for (int i = 0; i < pixels.Length; i += 4)
-                {
-                    bHist[pixels[i]]++;
-                    gHist[pixels[i + 1]]++;
-                    rHist[pixels[i + 2]]++;
-                }
-
-                int binsPerBar = 256 / 6;
-                double maxR = 0, maxG = 0, maxB = 0;
-                var rBins = new double[6];
-                var gBins = new double[6];
-                var bBins = new double[6];
-                for (int b = 0; b < 6; b++)
-                {
-                    for (int i = b * binsPerBar; i < (b + 1) * binsPerBar; i++)
+                    using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    var ext = Path.GetExtension(path).ToLowerInvariant();
+                    BitmapDecoder? decoder = ext switch
                     {
-                        rBins[b] += rHist[i];
-                        gBins[b] += gHist[i];
-                        bBins[b] += bHist[i];
-                    }
-                    if (rBins[b] > maxR) maxR = rBins[b];
-                    if (gBins[b] > maxG) maxG = gBins[b];
-                    if (bBins[b] > maxB) maxB = bBins[b];
-                }
+                        ".jpg" or ".jpeg" => new JpegBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                        ".png" => new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                        ".tiff" or ".tif" => new TiffBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                        ".bmp" => new BmpBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                        ".gif" => new GifBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                        _ => null
+                    };
+                    if (decoder == null || decoder.Frames.Count == 0)
+                        return (red, green, blue);
 
-                double maxAll = Math.Max(maxR, Math.Max(maxG, maxB));
-                if (maxAll > 0)
-                {
-                    for (int i = 0; i < 6; i++)
+                    var frame = decoder.Frames[0];
+                    int maxDim = 256;
+                    double scale = Math.Min((double)maxDim / frame.PixelWidth, (double)maxDim / frame.PixelHeight);
+                    if (scale > 1) scale = 1;
+                    var scaled = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
+                    var formatted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
+                    var pixels = new byte[formatted.PixelWidth * formatted.PixelHeight * 4];
+                    formatted.CopyPixels(pixels, formatted.PixelWidth * 4, 0);
+
+                    var rHist = new int[256];
+                    var gHist = new int[256];
+                    var bHist = new int[256];
+                    for (int i = 0; i < pixels.Length; i += 4)
                     {
-                        red[i] = rBins[i] / maxAll * 90;
-                        green[i] = gBins[i] / maxAll * 90;
-                        blue[i] = bBins[i] / maxAll * 90;
+                        bHist[pixels[i]]++;
+                        gHist[pixels[i + 1]]++;
+                        rHist[pixels[i + 2]]++;
                     }
-                }
+
+                    int binsPerBar = 256 / 6;
+                    double maxR = 0, maxG = 0, maxB = 0;
+                    var rBins = new double[6];
+                    var gBins = new double[6];
+                    var bBins = new double[6];
+                    for (int b2 = 0; b2 < 6; b2++)
+                    {
+                        for (int i = b2 * binsPerBar; i < (b2 + 1) * binsPerBar; i++)
+                        {
+                            rBins[b2] += rHist[i];
+                            gBins[b2] += gHist[i];
+                            bBins[b2] += bHist[i];
+                        }
+                        if (rBins[b2] > maxR) maxR = rBins[b2];
+                        if (gBins[b2] > maxG) maxG = gBins[b2];
+                        if (bBins[b2] > maxB) maxB = bBins[b2];
+                    }
+
+                    double maxAll = Math.Max(maxR, Math.Max(maxG, maxB));
+                    var rr = new double[6];
+                    var gg = new double[6];
+                    var bb = new double[6];
+                    if (maxAll > 0)
+                    {
+                        for (int i = 0; i < 6; i++)
+                        {
+                            rr[i] = rBins[i] / maxAll * 90;
+                            gg[i] = gBins[i] / maxAll * 90;
+                            bb[i] = bBins[i] / maxAll * 90;
+                        }
+                    }
+                    return (rr, gg, bb);
+                });
+                red = r; green = g; blue = b;
             }
             catch { }
 
@@ -992,6 +1009,8 @@ namespace WpfApp1
 
         private async void LoadMetadataPanel(string path)
         {
+            var ct = _metadataCts?.Token ?? CancellationToken.None;
+
             MetaCamera.Text = "—";
             MetaLens.Text = "—";
             MetaDateTaken.Text = "—";
@@ -1004,6 +1023,7 @@ namespace WpfApp1
             try
             {
                 var metadata = await ReadMetadataWithExifToolAsync(path);
+                if (ct.IsCancellationRequested) return;
                 if (metadata == null) return;
 
                 var make = GetJsonString(metadata, "Make");
@@ -1038,21 +1058,33 @@ namespace WpfApp1
         {
             if (metadata == null || metadata.Value.ValueKind == JsonValueKind.Null) return null;
             var m = metadata.Value;
+
             if (m.TryGetProperty(tag, out var val))
+                return ExtractStringValue(val);
+
+            var groupedTags = new[] { $"EXIF:{tag}", $"XMP:{tag}", $"IPTC:{tag}", $"File:{tag}" };
+            foreach (var grouped in groupedTags)
             {
-                if (val.ValueKind == JsonValueKind.String)
-                    return val.GetString();
-                if (val.ValueKind == JsonValueKind.Array)
-                {
-                    var parts = new List<string>();
-                    foreach (var item in val.EnumerateArray())
-                        if (item.ValueKind == JsonValueKind.String)
-                            parts.Add(item.GetString()!);
-                    return parts.Count > 0 ? string.Join(", ", parts) : null;
-                }
-                return val.ToString();
+                if (m.TryGetProperty(grouped, out var groupedVal))
+                    return ExtractStringValue(groupedVal);
             }
+
             return null;
+        }
+
+        private static string? ExtractStringValue(JsonElement val)
+        {
+            if (val.ValueKind == JsonValueKind.String)
+                return val.GetString();
+            if (val.ValueKind == JsonValueKind.Array)
+            {
+                var parts = new List<string>();
+                foreach (var item in val.EnumerateArray())
+                    if (item.ValueKind == JsonValueKind.String)
+                        parts.Add(item.GetString()!);
+                return parts.Count > 0 ? string.Join(", ", parts) : null;
+            }
+            return val.ToString();
         }
 
         private async Task<JsonElement?> ReadMetadataWithExifToolAsync(string path)
@@ -1064,6 +1096,7 @@ namespace WpfApp1
                 var args = new List<string>
                 {
                     "-json",
+                    "-G1",
                     "-DateTimeOriginal", "-DateTime",
                     "-Make", "-Model", "-LensModel",
                     "-FocalLength", "-FNumber", "-ExposureTime", "-ISO",
@@ -1265,95 +1298,160 @@ namespace WpfApp1
             if (_selectedItems.Count == 0) return;
             var names = _selectedItems.Take(3).Select(i => i.FileName).ToList();
             string msg = _selectedItems.Count == 1
-                ? $"Delete '{names[0]}'?"
-                : $"Delete {_selectedItems.Count} items? ({string.Join(", ", names)}...)";
+                ? $"Move '{names[0]}' to Recycle Bin?"
+                : $"Move {_selectedItems.Count} items to Recycle Bin? ({string.Join(", ", names)}...)";
 
             if (MessageBox.Show(msg, "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
             {
+                var failed = new List<string>();
                 foreach (var item in _selectedItems.ToList())
                 {
                     try
                     {
                         if (item.IsFolder)
-                            Directory.Delete(item.FilePath, true);
+                            FileSystem.DeleteDirectory(item.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
                         else
-                            File.Delete(item.FilePath);
+                            FileSystem.DeleteFile(item.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
                         _thumbs.Remove(item);
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        failed.Add($"{item.FileName}: {ex.Message}");
+                    }
                 }
                 ClearSelection();
                 StatusFiles.Text = $"{_thumbs.Count} items";
                 StatusSelection.Text = "0 selected";
+                if (failed.Count > 0)
+                {
+                    MessageBox.Show($"Failed to delete {failed.Count} item(s):\n{string.Join("\n", failed.Take(5))}",
+                        "Delete Errors", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
         }
 
-        private ThumbItem _renameTarget;
+        private ThumbItem? _renameTarget;
 
         private void RenameItem(ThumbItem item)
         {
             if (item == null) return;
             _renameTarget = item;
 
-            var container = ThumbsGrid.ItemContainerGenerator.ContainerFromItem(item) as ContentPresenter;
-            if (container == null) return;
+            var currentName = item.FileName;
+            var ext = item.IsFolder ? "" : Path.GetExtension(currentName);
+            var nameWithoutExt = item.IsFolder ? currentName : Path.GetFileNameWithoutExtension(currentName);
 
-            var fileNameBlock = FindChild<TextBlock>(container, "FileName");
-            if (fileNameBlock == null) return;
+            var dialog = new Window
+            {
+                Title = "Rename",
+                Width = 380,
+                Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                Background = (System.Windows.Media.Brush)FindResource("BgBrush"),
+                WindowStyle = WindowStyle.None,
+                AllowsTransparency = true,
+                BorderBrush = (System.Windows.Media.Brush)FindResource("BorderBrush"),
+                BorderThickness = new Thickness(1)
+            };
 
-            var transform = fileNameBlock.TransformToAncestor(this as Visual);
-            var position = transform.Transform(new Point(0, 0));
+            var stack = new StackPanel { Margin = new Thickness(16) };
+            var label = new TextBlock
+            {
+                Text = item.IsFolder ? "Enter new folder name:" : "Enter new file name:",
+                Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+                FontSize = 12,
+                Margin = new Thickness(0, 8, 0, 8)
+            };
+            var textBox = new TextBox
+            {
+                Text = currentName,
+                FontSize = 13,
+                Padding = new Thickness(6, 4, 6, 4),
+                Margin = new Thickness(0, 0, 0, 12),
+                CaretBrush = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+                Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+                Background = (System.Windows.Media.Brush)FindResource("BgInstructBrush")
+            };
+            textBox.SelectAll();
 
-            RenameTextBox.Text = item.FileName;
-            RenameTextBox.Width = fileNameBlock.ActualWidth + 4;
-            RenameTextBox.Height = fileNameBlock.ActualHeight + 4;
-            RenameTextBox.Margin = new Thickness(position.X - 2, position.Y - 2, 0, 0);
-            RenameTextBox.HorizontalAlignment = HorizontalAlignment.Left;
-            RenameTextBox.VerticalAlignment = VerticalAlignment.Top;
-            RenameTextBox.Visibility = Visibility.Visible;
-            RenameTextBox.Focus();
-            RenameTextBox.SelectAll();
-        }
+            var btnPanel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            var cancelBtn = new Button
+            {
+                Content = "Cancel",
+                Padding = new Thickness(12, 6, 12, 6),
+                Margin = new Thickness(0, 0, 8, 0),
+                Cursor = Cursors.Hand,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"),
+                Background = (System.Windows.Media.Brush)FindResource("BtnBgBrush")
+            };
+            cancelBtn.Click += (_, _) => { dialog.DialogResult = false; dialog.Close(); };
 
-        private void RenameTextBox_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
-                CommitRename();
-            else if (e.Key == Key.Escape)
-                CancelRename();
-        }
+            var okBtn = new Button
+            {
+                Content = "Rename",
+                Padding = new Thickness(12, 6, 12, 6),
+                Cursor = Cursors.Hand,
+                Foreground = System.Windows.Media.Brushes.White,
+                Background = (System.Windows.Media.Brush)FindResource("AccentBrush")
+            };
+            okBtn.Click += (_, _) => { dialog.DialogResult = true; dialog.Close(); };
 
-        private void RenameTextBox_LostFocus(object sender, RoutedEventArgs e)
-        {
-            CommitRename();
-        }
+            btnPanel.Children.Add(cancelBtn);
+            btnPanel.Children.Add(okBtn);
+            stack.Children.Add(label);
+            stack.Children.Add(textBox);
+            stack.Children.Add(btnPanel);
+            dialog.Content = stack;
 
-        private void CommitRename()
-        {
-            if (_renameTarget == null || RenameTextBox.Visibility != Visibility.Visible) return;
-            RenameTextBox.Visibility = Visibility.Collapsed;
+            textBox.KeyDown += (_, e) =>
+            {
+                if (e.Key == Key.Enter) { dialog.DialogResult = true; dialog.Close(); }
+                else if (e.Key == Key.Escape) { dialog.DialogResult = false; dialog.Close(); }
+            };
 
-            string newName = RenameTextBox.Text.Trim();
-            if (string.IsNullOrEmpty(newName) || newName == _renameTarget.FileName)
+            if (dialog.ShowDialog() != true || _renameTarget == null)
             {
                 _renameTarget = null;
                 return;
             }
 
+            string newName = textBox.Text.Trim();
+            if (string.IsNullOrEmpty(newName) || newName == currentName)
+            {
+                _renameTarget = null;
+                return;
+            }
+
+            if (!item.IsFolder)
+            {
+                var newNameExt = Path.GetExtension(newName);
+                if (string.IsNullOrEmpty(newNameExt))
+                    newName = newName + ext;
+            }
+
             try
             {
-                string dir = Path.GetDirectoryName(_renameTarget.FilePath);
+                string? dir = Path.GetDirectoryName(item.FilePath);
+                if (string.IsNullOrEmpty(dir)) return;
                 string newPath = Path.Combine(dir, newName);
 
-                if (_renameTarget.IsFolder)
-                    Directory.Move(_renameTarget.FilePath, newPath);
-                else
-                    File.Move(_renameTarget.FilePath, newPath);
+                if (File.Exists(newPath) || Directory.Exists(newPath))
+                {
+                    MessageBox.Show($"An item named '{newName}' already exists.", "Rename", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    _renameTarget = null;
+                    return;
+                }
 
-                _renameTarget.FilePath = newPath;
-                _renameTarget.FileName = newName;
-                if (!_renameTarget.IsFolder)
-                    _renameTarget.FileType = Path.GetExtension(newName).TrimStart('.').ToUpper();
+                if (item.IsFolder)
+                    Directory.Move(item.FilePath, newPath);
+                else
+                    File.Move(item.FilePath, newPath);
+
+                item.FilePath = newPath;
+                item.FileName = newName;
+                if (!item.IsFolder)
+                    item.FileType = Path.GetExtension(newName).TrimStart('.').ToUpper();
             }
             catch (Exception ex)
             {
@@ -1363,26 +1461,7 @@ namespace WpfApp1
             _renameTarget = null;
         }
 
-        private void CancelRename()
-        {
-            RenameTextBox.Visibility = Visibility.Collapsed;
-            _renameTarget = null;
-        }
-
-        private static T FindChild<T>(DependencyObject parent, string childName) where T : DependencyObject
-        {
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
-            {
-                var child = VisualTreeHelper.GetChild(parent, i);
-                if (child is T found && found.GetType().Name == childName)
-                    return found;
-                var result = FindChild<T>(child, childName);
-                if (result != null) return result;
-            }
-            return null;
-        }
-
-        private ThumbItem _clipboardItem;
+        private ThumbItem? _clipboardItem;
         private bool _clipboardIsCut;
 
         private void CtxOpen_Click(object sender, RoutedEventArgs e)
@@ -1491,11 +1570,15 @@ namespace WpfApp1
 
         private void ShowViewer(ThumbItem item)
         {
-            _savedWindowLeft = Left;
-            _savedWindowTop = Top;
-            _savedWindowWidth = Width;
-            _savedWindowHeight = Height;
-            _savedStartupLocation = WindowStartupLocation;
+            if (!_isInViewer)
+            {
+                _savedWindowLeft = Left;
+                _savedWindowTop = Top;
+                _savedWindowWidth = Width;
+                _savedWindowHeight = Height;
+                _savedStartupLocation = WindowStartupLocation;
+            }
+            _isInViewer = true;
 
             ShowOverlay(ViewerOverlay);
             ViewerTitle.Text = item.FileName;
@@ -1796,6 +1879,7 @@ namespace WpfApp1
             group.Children.Add(new RotateTransform(_viewerRotation));
             group.Children.Add(new TranslateTransform(_panX, _panY));
             ViewerImage.RenderTransform = group;
+            ClippingOverlay.RenderTransform = group;
             ViewerZoom.Text = $"{(int)(_viewerZoom * 100)}%";
             ViewerStatusZoom.Text = $"{(int)(_viewerZoom * 100)}%";
 
@@ -1844,10 +1928,14 @@ namespace WpfApp1
             if (ViewerImage.Source is not BitmapSource src) return;
 
             var formatted = new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
-            int w = formatted.PixelWidth;
-            int h = formatted.PixelHeight;
+            int maxDim = 512;
+            double scale = Math.Min((double)maxDim / formatted.PixelWidth, (double)maxDim / formatted.PixelHeight);
+            if (scale > 1) scale = 1;
+            var scaled = new TransformedBitmap(formatted, new ScaleTransform(scale, scale));
+            int w = scaled.PixelWidth;
+            int h = scaled.PixelHeight;
             var pixels = new byte[w * h * 4];
-            formatted.CopyPixels(pixels, w * 4, 0);
+            scaled.CopyPixels(pixels, w * 4, 0);
 
             var overlay = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
             var overlayPixels = new byte[w * h * 4];
@@ -1890,6 +1978,7 @@ namespace WpfApp1
             if (group == null || group.Children.Count < 3) return;
             ((TranslateTransform)group.Children[2]).X = _panX;
             ((TranslateTransform)group.Children[2]).Y = _panY;
+            ClippingOverlay.RenderTransform = group;
         }
 
         #endregion
@@ -1906,6 +1995,7 @@ namespace WpfApp1
             overlay.Visibility = Visibility.Collapsed;
             if (overlay == ViewerOverlay)
             {
+                _isInViewer = false;
                 Width = _savedWindowWidth;
                 Height = _savedWindowHeight;
                 Left = _savedWindowLeft;
@@ -1974,7 +2064,16 @@ namespace WpfApp1
 
         private void MenuSave_Click(object sender, RoutedEventArgs e)
         {
-            if (PreviewImage.Source is not BitmapSource bs) return;
+            var sourcePath = !string.IsNullOrEmpty(_currentPreviewPath) && File.Exists(_currentPreviewPath)
+                ? _currentPreviewPath
+                : null;
+
+            if (sourcePath == null)
+            {
+                MessageBox.Show("No image selected to save.", "Save As", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             var dlg = new SaveFileDialog
             {
                 Filter = "PNG|*.png|JPEG|*.jpg|BMP|*.bmp|TIFF|*.tiff|All Files|*.*",
@@ -1986,6 +2085,25 @@ namespace WpfApp1
                 try
                 {
                     var ext = Path.GetExtension(dlg.FileName).ToLower();
+                    BitmapDecoder decoder;
+                    using (var fs = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        decoder = ext switch
+                        {
+                            ".jpg" or ".jpeg" => new JpegBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                            ".bmp" => new BmpBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                            ".tiff" or ".tif" => new TiffBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                            _ => new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None)
+                        };
+                    }
+
+                    if (decoder.Frames.Count == 0)
+                    {
+                        MessageBox.Show("Could not decode the source image.", "Save As", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+
+                    var frame = decoder.Frames[0];
                     BitmapEncoder encoder = ext switch
                     {
                         ".jpg" or ".jpeg" => new JpegBitmapEncoder { QualityLevel = 95 },
@@ -1993,9 +2111,9 @@ namespace WpfApp1
                         ".tiff" or ".tif" => new TiffBitmapEncoder(),
                         _ => new PngBitmapEncoder()
                     };
-                    encoder.Frames.Add(BitmapFrame.Create(bs));
-                    using var fs = File.Create(dlg.FileName);
-                    encoder.Save(fs);
+                    encoder.Frames.Add(BitmapFrame.Create(frame));
+                    using var outStream = File.Create(dlg.FileName);
+                    encoder.Save(outStream);
                 }
                 catch (Exception ex)
                 {
@@ -2174,7 +2292,7 @@ namespace WpfApp1
             }
         }
 
-        private static WrapPanel FindWrapPanel(DependencyObject parent)
+        private static WrapPanel? FindWrapPanel(DependencyObject parent)
         {
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
             {
@@ -2261,7 +2379,7 @@ namespace WpfApp1
 
     public class ThumbItem : System.ComponentModel.INotifyPropertyChanged
     {
-        private BitmapSource _thumbnail;
+        private BitmapSource? _thumbnail;
         private bool _isSelected;
         public string FileName { get; set; } = "";
         public string FilePath { get; set; } = "";
@@ -2276,11 +2394,11 @@ namespace WpfApp1
             get => _isSelected;
             set { _isSelected = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsSelected))); }
         }
-        public BitmapSource Thumbnail
+        public BitmapSource? Thumbnail
         {
             get => _thumbnail;
             set { _thumbnail = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(Thumbnail))); }
         }
-        public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 }

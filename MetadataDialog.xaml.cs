@@ -113,6 +113,7 @@ namespace WpfApp1
                 var args = new List<string>
                 {
                     "-json",
+                    "-G1",
                     "-XMP-dc:Title", "-XMP-dc:Description", "-XMP-dc:Subject", "-XMP-dc:Creator",
                     "-IPTC:ObjectName", "-IPTC:Caption-Abstract", "-IPTC:Keywords", "-IPTC:By-line",
                     "-ImageDescription", "-Artist", "-Copyright",
@@ -136,21 +137,33 @@ namespace WpfApp1
         {
             if (metadata == null || metadata.Value.ValueKind == JsonValueKind.Null) return null;
             var m = metadata.Value;
+
             if (m.TryGetProperty(tag, out var val))
+                return ExtractStringValue(val);
+
+            var groupedTags = new[] { $"EXIF:{tag}", $"XMP:{tag}", $"IPTC:{tag}", $"File:{tag}" };
+            foreach (var grouped in groupedTags)
             {
-                if (val.ValueKind == JsonValueKind.String)
-                    return val.GetString();
-                if (val.ValueKind == JsonValueKind.Array)
-                {
-                    var parts = new List<string>();
-                    foreach (var item in val.EnumerateArray())
-                        if (item.ValueKind == JsonValueKind.String)
-                            parts.Add(item.GetString()!);
-                    return parts.Count > 0 ? string.Join(", ", parts) : null;
-                }
-                return val.ToString();
+                if (m.TryGetProperty(grouped, out var groupedVal))
+                    return ExtractStringValue(groupedVal);
             }
+
             return null;
+        }
+
+        private static string? ExtractStringValue(JsonElement val)
+        {
+            if (val.ValueKind == JsonValueKind.String)
+                return val.GetString();
+            if (val.ValueKind == JsonValueKind.Array)
+            {
+                var parts = new List<string>();
+                foreach (var item in val.EnumerateArray())
+                    if (item.ValueKind == JsonValueKind.String)
+                        parts.Add(item.GetString()!);
+                return parts.Count > 0 ? string.Join(", ", parts) : null;
+            }
+            return val.ToString();
         }
 
         private async void Save_Click(object sender, RoutedEventArgs e)

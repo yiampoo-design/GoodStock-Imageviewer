@@ -4,6 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
     <ApplicationIcon></ApplicationIcon>
     <AssemblyName>WpfApp1</AssemblyName>
     <RootNamespace>WpfApp1</RootNamespace>
