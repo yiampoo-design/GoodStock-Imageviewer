@@ -19,11 +19,16 @@ using System.Windows.Shell;
 using Microsoft.Win32;
 using Directory = System.IO.Directory;
 using Microsoft.VisualBasic.FileIO;
+using WpfApp1.Models;
+
+using WpfApp1.Services;
+using WpfApp1.ViewModels;
 
 namespace WpfApp1
 {
     public partial class MainWindow : Window
     {
+        private readonly MainViewModel _viewModel;
         private readonly ObservableCollection<ThumbItem> _thumbs = new();
         private readonly List<string> _history = new();
         private int _historyIndex = -1;
@@ -74,7 +79,8 @@ namespace WpfApp1
         public MainWindow()
         {
             InitializeComponent();
-            DataContext = this;
+            _viewModel = new MainViewModel();
+            DataContext = _viewModel;
             Loaded += MainWindow_Loaded;
         }
 
@@ -1142,17 +1148,106 @@ namespace WpfApp1
 
         private void PreviewTab_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is RadioButton rb && rb.Name == "TabMeta")
+            ExifPanel.Visibility = Visibility.Collapsed;
+            HistogramPanel.Visibility = Visibility.Collapsed;
+            MetaPanel.Visibility = Visibility.Collapsed;
+            PreflightPanel.Visibility = Visibility.Collapsed;
+
+            if (sender is RadioButton rb)
             {
-                ExifPanel.Visibility = Visibility.Collapsed;
-                HistogramPanel.Visibility = Visibility.Collapsed;
-                MetaPanel.Visibility = Visibility.Visible;
+                switch (rb.Name)
+                {
+                    case "TabMeta":
+                        MetaPanel.Visibility = Visibility.Visible;
+                        break;
+                    case "TabPreflight":
+                        PreflightPanel.Visibility = Visibility.Visible;
+                        RunPreflightCheck();
+                        break;
+                    default:
+                        ExifPanel.Visibility = Visibility.Visible;
+                        break;
+                }
             }
-            else
+        }
+
+        private void RunPreflight_Click(object sender, RoutedEventArgs e)
+        {
+            RunPreflightCheck();
+        }
+
+        private async void RunPreflightCheck()
+        {
+            if (string.IsNullOrEmpty(_currentPreviewPath) || !File.Exists(_currentPreviewPath)) return;
+
+            PreflightDimensions.Text = "Checking...";
+            PreflightFormat.Text = "Checking...";
+            PreflightIcc.Text = "Checking...";
+            PreflightMetadata.Text = "Checking...";
+            PreflightGps.Text = "Checking...";
+            PreflightKeywords.Text = "Checking...";
+
+            try
             {
-                ExifPanel.Visibility = Visibility.Visible;
-                HistogramPanel.Visibility = Visibility.Collapsed;
-                MetaPanel.Visibility = Visibility.Collapsed;
+                _viewModel.LoadMetadataForFileCommand.Execute(_currentPreviewPath);
+                await Task.Delay(500);
+
+                if (_viewModel.CurrentMetadata == null)
+                {
+                    PreflightDimensions.Text = "No metadata available";
+                    PreflightFormat.Text = "—";
+                    PreflightIcc.Text = "—";
+                    PreflightMetadata.Text = "—";
+                    PreflightGps.Text = "—";
+                    PreflightKeywords.Text = "—";
+                    return;
+                }
+
+                var meta = _viewModel.CurrentMetadata;
+                var ext = System.IO.Path.GetExtension(meta.FilePath).ToUpper().TrimStart('.');
+
+                PreflightDimensions.Text = meta.Width > 0
+                    ? $"{meta.Width}×{meta.Height} ({meta.Megapixels:F1} MP) — {(meta.Width >= 2000 && meta.Height >= 2000 ? "OK" : "Below 2000px minimum")}"
+                    : "Dimensions not available";
+
+                var accepted = new[] { "JPG", "JPEG", "TIFF", "TIF", "PNG" };
+                PreflightFormat.Text = accepted.Contains(ext) ? $"{ext} — Accepted" : $"{ext} — Not a standard stock format";
+
+                PreflightIcc.Text = string.IsNullOrEmpty(meta.IccProfile) ? "No ICC profile detected" : meta.IccProfile;
+
+                var missing = new List<string>();
+                if (string.IsNullOrWhiteSpace(meta.Title)) missing.Add("Title");
+                if (string.IsNullOrWhiteSpace(meta.Description)) missing.Add("Description");
+                if (meta.Keywords.Count == 0) missing.Add("Keywords");
+                if (string.IsNullOrWhiteSpace(meta.Creator)) missing.Add("Creator");
+                if (string.IsNullOrWhiteSpace(meta.Copyright)) missing.Add("Copyright");
+                PreflightMetadata.Text = missing.Count == 0 ? "All required fields present" : $"Missing: {string.Join(", ", missing)}";
+
+                PreflightGps.Text = (meta.GpsLatitude != null || meta.GpsLongitude != null)
+                    ? "GPS data present — consider removing for privacy"
+                    : "No GPS data";
+
+                if (meta.Keywords.Count > 0)
+                {
+                    var lower = meta.Keywords.Select(k => k.Trim().ToLowerInvariant()).ToList();
+                    var dupes = lower.GroupBy(x => x).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+                    PreflightKeywords.Text = dupes.Count == 0
+                        ? $"{meta.Keywords.Count} unique keywords"
+                        : $"{dupes.Count} duplicate(s): {string.Join(", ", dupes.Take(3))}";
+                }
+                else
+                {
+                    PreflightKeywords.Text = "No keywords";
+                }
+            }
+            catch
+            {
+                PreflightDimensions.Text = "Error running preflight";
+                PreflightFormat.Text = "—";
+                PreflightIcc.Text = "—";
+                PreflightMetadata.Text = "—";
+                PreflightGps.Text = "—";
+                PreflightKeywords.Text = "—";
             }
         }
 
@@ -1927,49 +2022,20 @@ namespace WpfApp1
         {
             if (ViewerImage.Source is not BitmapSource src) return;
 
-            var formatted = new FormatConvertedBitmap(src, PixelFormats.Bgra32, null, 0);
-            int maxDim = 512;
-            double scale = Math.Min((double)maxDim / formatted.PixelWidth, (double)maxDim / formatted.PixelHeight);
-            if (scale > 1) scale = 1;
-            var scaled = new TransformedBitmap(formatted, new ScaleTransform(scale, scale));
-            int w = scaled.PixelWidth;
-            int h = scaled.PixelHeight;
-            var pixels = new byte[w * h * 4];
-            scaled.CopyPixels(pixels, w * 4, 0);
+            _ = GenerateClippingOverlayAsync(src);
+        }
 
-            var overlay = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgra32, null);
-            var overlayPixels = new byte[w * h * 4];
-
-            const int overexposedThreshold = 250;
-            const int underexposedThreshold = 5;
-
-            for (int i = 0; i < pixels.Length; i += 4)
+        private async Task GenerateClippingOverlayAsync(BitmapSource src)
+        {
+            try
             {
-                byte b = pixels[i];
-                byte g = pixels[i + 1];
-                byte r = pixels[i + 2];
-
-                int brightness = (r + g + b) / 3;
-
-                if (brightness >= overexposedThreshold)
-                {
-                    overlayPixels[i] = 0;
-                    overlayPixels[i + 1] = 0;
-                    overlayPixels[i + 2] = 255;
-                    overlayPixels[i + 3] = 200;
-                }
-                else if (brightness <= underexposedThreshold)
-                {
-                    overlayPixels[i] = 255;
-                    overlayPixels[i + 1] = 0;
-                    overlayPixels[i + 2] = 0;
-                    overlayPixels[i + 3] = 200;
-                }
+                var downscaled = await ImageDecodeService.LoadAnalysisBitmapAsync(_currentPreviewPath ?? "", 512) ?? src;
+                var overlay = ClippingAnalyzer.GenerateOverlay(downscaled, ClippingMode.RgbChannels);
+                overlay.Freeze();
+                _clippingBitmap = overlay;
+                ClippingOverlay.Source = overlay;
             }
-
-            overlay.WritePixels(new Int32Rect(0, 0, w, h), overlayPixels, w * 4, 0);
-            _clippingBitmap = overlay;
-            ClippingOverlay.Source = overlay;
+            catch { }
         }
 
         private void ApplyPan()
@@ -2142,6 +2208,7 @@ namespace WpfApp1
 
         private void ToggleTheme_Click(object sender, RoutedEventArgs e)
         {
+            _viewModel.ToggleThemeCommand.Execute(null);
         }
 
         #endregion
@@ -2369,6 +2436,16 @@ namespace WpfApp1
                     _selectedItems.Add(item);
                 }
                 StatusSelection.Text = $"{_selectedItems.Count} items selected";
+            }
+            else if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                SearchBox.Focus();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.I && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                ManageMetadata_Click(this, new RoutedEventArgs());
+                e.Handled = true;
             }
             else if (e.Key == Key.Back)
                 NavigateUp();
