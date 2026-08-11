@@ -153,9 +153,10 @@ namespace WpfApp1.Services
                             if (diff > 2)
                                 mismatches.Add($"DateTaken: expected '{patch.DateTaken}', got '{verified_meta.DateTaken}'");
                         }
-                    }
-                    else if (patch.DateTaken == null && verified_meta.DateTaken != null)
-                    {
+                        else
+                        {
+                            mismatches.Add($"DateTaken: user input '{patch.DateTaken}' is not a valid date");
+                        }
                     }
                 }
 
