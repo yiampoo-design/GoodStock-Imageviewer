@@ -85,7 +85,7 @@ namespace WpfApp1.Models
             var digStr = ResolveTag(element, "ExifIFD:DateTimeDigitized");
             if (DateTime.TryParse(digStr, out var digDt)) meta.DateDigitized = digDt;
 
-            var latStr = ResolveTag(element, "GPS:GPSLatitude#", "GPSLatitude#", "GPS:GPSLatitude", "GPSLatitude");
+            var latStr = ResolveTag(element, "GPS:GPSLatitude", "GPSLatitude");
             if (latStr != null && double.TryParse(latStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var latSigned))
             {
                 meta.GpsLatitude = latSigned;
@@ -100,7 +100,7 @@ namespace WpfApp1.Models
                 }
             }
 
-            var lonStr = ResolveTag(element, "GPS:GPSLongitude#", "GPSLongitude#", "GPS:GPSLongitude", "GPSLongitude");
+            var lonStr = ResolveTag(element, "GPS:GPSLongitude", "GPSLongitude");
             if (lonStr != null && double.TryParse(lonStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lonSigned))
             {
                 meta.GpsLongitude = lonSigned;
