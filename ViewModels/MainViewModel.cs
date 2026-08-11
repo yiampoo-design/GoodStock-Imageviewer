@@ -90,13 +90,14 @@ namespace WpfApp1.ViewModels
                 ms.InvalidateCache(filePath);
         }
 
-        public async Task LoadMetadataForFileAsync(string? filePath)
+        public async Task<PhotoMetadata?> LoadMetadataForFileAsync(string? filePath, CancellationToken externalCt = default)
         {
-            if (string.IsNullOrEmpty(filePath)) return;
+            if (string.IsNullOrEmpty(filePath)) return null;
 
             _metadataCts?.Cancel();
             _metadataCts = new CancellationTokenSource();
-            var ct = _metadataCts.Token;
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_metadataCts.Token, externalCt);
+            var ct = linkedCts.Token;
 
             try
             {
@@ -104,9 +105,10 @@ namespace WpfApp1.ViewModels
                 ct.ThrowIfCancellationRequested();
                 if (metadata != null)
                     CurrentMetadata = metadata;
+                return metadata;
             }
-            catch (OperationCanceledException) { }
-            catch { }
+            catch (OperationCanceledException) { return null; }
+            catch { return null; }
         }
 
         public void Dispose()

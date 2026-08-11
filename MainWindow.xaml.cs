@@ -823,9 +823,8 @@ namespace WpfApp1
             bool hasExifData = false;
             try
             {
-                await _viewModel.LoadMetadataForFileAsync(path);
+                var metadata = await _viewModel.LoadMetadataForFileAsync(path, ct);
                 ct.ThrowIfCancellationRequested();
-                var metadata = _viewModel.CurrentMetadata;
                 if (metadata == null) { ExifNoData.Visibility = Visibility.Visible; return; }
 
                 if (!string.IsNullOrEmpty(metadata.Model))
@@ -987,9 +986,16 @@ namespace WpfApp1
             RunPreflightCheck();
         }
 
+        private CancellationTokenSource? _preflightCts;
+
         private async void RunPreflightCheck()
         {
-            if (string.IsNullOrEmpty(_currentPreviewPath) || !File.Exists(_currentPreviewPath)) return;
+            _preflightCts?.Cancel();
+            _preflightCts = new CancellationTokenSource();
+            var ct = _preflightCts.Token;
+
+            var requestedPath = _currentPreviewPath;
+            if (string.IsNullOrEmpty(requestedPath) || !File.Exists(requestedPath)) return;
 
             PreflightDimensions.Text = "Checking...";
             PreflightFormat.Text = "Checking...";
@@ -1000,10 +1006,10 @@ namespace WpfApp1
 
             try
             {
-                await _viewModel.LoadMetadataForFileAsync(_currentPreviewPath);
-                var meta = _viewModel.CurrentMetadata;
+                var meta = await _viewModel.LoadMetadataForFileAsync(requestedPath, ct);
+                ct.ThrowIfCancellationRequested();
 
-                if (meta == null)
+                if (meta == null || meta.FilePath != requestedPath)
                 {
                     PreflightDimensions.Text = "No metadata available";
                     PreflightFormat.Text = "—";
