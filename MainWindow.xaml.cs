@@ -38,6 +38,7 @@ namespace WpfApp1
         private int _lastClickIndex = -1;
         private string _currentFolder = "";
         private string _currentPreviewPath = "";
+        private string _viewerCurrentPath = "";
         private readonly List<string> _imageFiles = new();
         private int _viewerIndex = -1;
         private double _viewerZoom = 1.0;
@@ -1498,6 +1499,7 @@ namespace WpfApp1
                 _savedStartupLocation = WindowStartupLocation;
             }
             _isInViewer = true;
+            _viewerCurrentPath = item.FilePath;
 
             ShowOverlay(ViewerOverlay);
             ViewerTitle.Text = item.FileName;
@@ -1507,6 +1509,7 @@ namespace WpfApp1
             _viewerRotation = 0;
             ViewerImage.RenderTransform = null;
 
+            bool wasClipping = _clippingWarningEnabled;
             _clippingWarningEnabled = false;
             ClippingOverlay.Source = null;
             _clippingBitmap = null;
@@ -1538,6 +1541,12 @@ namespace WpfApp1
             }
 
             ViewerStatusZoom.Text = "100%";
+
+            if (wasClipping)
+            {
+                _clippingWarningEnabled = true;
+                GenerateClippingOverlay();
+            }
 
             var workArea = GetCurrentMonitorWorkArea();
             double winW = Math.Max(480, Math.Min(_viewerOrigWidth, workArea.Width - 16));
@@ -1853,7 +1862,8 @@ namespace WpfApp1
         {
             try
             {
-                var downscaled = await ImageDecodeService.LoadAnalysisBitmapAsync(_currentPreviewPath ?? "", 512) ?? src;
+                var sourcePath = _isInViewer ? _viewerCurrentPath : _currentPreviewPath;
+                var downscaled = await ImageDecodeService.LoadAnalysisBitmapAsync(sourcePath ?? "", 512) ?? src;
                 var overlay = ClippingAnalyzer.GenerateOverlay(downscaled, ClippingMode.RgbChannels);
                 overlay.Freeze();
                 _clippingBitmap = overlay;
