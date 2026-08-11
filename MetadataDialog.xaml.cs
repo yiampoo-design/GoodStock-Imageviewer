@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -17,12 +18,30 @@ namespace WpfApp1
         private System.Windows.Point _dragStart;
         private bool _isDragging;
 
+        // Original loaded values, used to detect which fields the user changed.
+        private string _origTitle = "";
+        private string _origDescription = "";
+        private string _origKeywords = "";
+        private string _origCreator = "";
+        private string _origCopyright = "";
+        private string _origDateTaken = "";
+
         public MetadataDialog(string filePath, ExifToolRuntimeService runtime)
         {
             InitializeComponent();
             _filePath = filePath;
             _metadataService = new MetadataService(runtime);
+            Closed += OnDialogClosed;
             _ = LoadMetadataAsync();
+        }
+
+        private void OnDialogClosed(object? sender, EventArgs e)
+        {
+            if (_metadataService is IDisposable d)
+            {
+                try { d.Dispose(); }
+                catch { }
+            }
         }
 
         private async Task LoadMetadataAsync()
@@ -58,12 +77,19 @@ namespace WpfApp1
                     return;
                 }
 
-                MetaTitle.Text = meta.Title ?? "";
-                MetaDescription.Text = meta.Description ?? "";
-                MetaCreator.Text = meta.Creator ?? "";
-                MetaCopyright.Text = meta.Copyright ?? "";
-                MetaTags.Text = meta.Keywords.Count > 0 ? string.Join(", ", meta.Keywords) : "";
-                MetaDateTaken.Text = meta.DateTaken?.ToString("yyyy-MM-dd HH:mm:ss") ?? "";
+                _origTitle = meta.Title ?? "";
+                _origDescription = meta.Description ?? "";
+                _origCreator = meta.Creator ?? "";
+                _origCopyright = meta.Copyright ?? "";
+                _origKeywords = meta.Keywords.Count > 0 ? string.Join(", ", meta.Keywords) : "";
+                _origDateTaken = meta.DateTaken?.ToString("yyyy-MM-dd HH:mm:ss") ?? "";
+
+                MetaTitle.Text = _origTitle;
+                MetaDescription.Text = _origDescription;
+                MetaCreator.Text = _origCreator;
+                MetaCopyright.Text = _origCopyright;
+                MetaTags.Text = _origKeywords;
+                MetaDateTaken.Text = _origDateTaken;
 
                 var lines = new List<string>();
                 if (!string.IsNullOrEmpty(meta.Make)) lines.Add($"Make: {meta.Make}");
@@ -86,6 +112,56 @@ namespace WpfApp1
             }
         }
 
+        private static bool Changed(string? original, string current) =>
+            !string.Equals(original ?? "", current ?? "", StringComparison.Ordinal);
+
+        private MetadataPatch BuildPatch()
+        {
+            var patch = new MetadataPatch();
+
+            if (Changed(_origTitle, MetaTitle.Text))
+            {
+                patch.TitleAction = string.IsNullOrWhiteSpace(MetaTitle.Text) ? FieldAction.Clear : FieldAction.Set;
+                patch.Title = MetaTitle.Text;
+            }
+
+            if (Changed(_origDescription, MetaDescription.Text))
+            {
+                patch.DescriptionAction = string.IsNullOrWhiteSpace(MetaDescription.Text) ? FieldAction.Clear : FieldAction.Set;
+                patch.Description = MetaDescription.Text;
+            }
+
+            var keywords = string.IsNullOrWhiteSpace(MetaTags.Text)
+                ? new List<string>()
+                : new List<string>(MetaTags.Text.Split(new[] { ", ", "," }, StringSplitOptions.RemoveEmptyEntries));
+            var keywordText = string.Join(", ", keywords);
+            if (Changed(_origKeywords, keywordText))
+            {
+                patch.KeywordsAction = keywords.Count == 0 ? FieldAction.Clear : FieldAction.Set;
+                patch.Keywords = keywords;
+            }
+
+            if (Changed(_origCreator, MetaCreator.Text))
+            {
+                patch.CreatorAction = string.IsNullOrWhiteSpace(MetaCreator.Text) ? FieldAction.Clear : FieldAction.Set;
+                patch.Creator = MetaCreator.Text;
+            }
+
+            if (Changed(_origCopyright, MetaCopyright.Text))
+            {
+                patch.CopyrightAction = string.IsNullOrWhiteSpace(MetaCopyright.Text) ? FieldAction.Clear : FieldAction.Set;
+                patch.Copyright = MetaCopyright.Text;
+            }
+
+            if (Changed(_origDateTaken, MetaDateTaken.Text))
+            {
+                patch.DateTakenAction = string.IsNullOrWhiteSpace(MetaDateTaken.Text) ? FieldAction.Clear : FieldAction.Set;
+                patch.DateTaken = MetaDateTaken.Text;
+            }
+
+            return patch;
+        }
+
         private async void Save_Click(object sender, RoutedEventArgs e)
         {
             if (!await _metadataService.IsAvailableAsync())
@@ -96,19 +172,12 @@ namespace WpfApp1
 
             try
             {
-                var keywords = string.IsNullOrWhiteSpace(MetaTags.Text)
-                    ? new List<string>()
-                    : new List<string>(MetaTags.Text.Split(new[] { ", ", "," }, StringSplitOptions.RemoveEmptyEntries));
-
-                var patch = new MetadataPatch
+                var patch = BuildPatch();
+                if (!patch.HasChanges)
                 {
-                    Title = MetaTitle.Text,
-                    Description = MetaDescription.Text,
-                    Creator = MetaCreator.Text,
-                    Copyright = MetaCopyright.Text,
-                    Keywords = keywords,
-                    DateTaken = MetaDateTaken.Text,
-                };
+                    MessageBox.Show("No metadata fields were changed.", "Nothing to Save", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
 
                 var result = await _metadataService.WriteMetadataAsync(_filePath, patch);
                 if (!result.Success)

@@ -179,23 +179,36 @@ namespace WpfApp1.Services
             var stdout = await ReadStdoutAsync(readyMarker, timeoutCts.Token);
             var stderr = await DrainStderrAsync(timeoutCts.Token);
 
-            if (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
+            // The command is only considered complete when the expected
+            // {ready<ID>} marker was consumed. Anything else means the session
+            // may still hold an unresolved response, so it must be restarted
+            // before the semaphore is released -- never reuse a dirty session.
+            if (!stdout.ReadyMarkerSeen)
             {
-                AppLog.Warn("ExifTool command timed out");
+                if (ct.IsCancellationRequested)
+                {
+                    AppLog.Warn("ExifTool command cancelled before ready marker; restarting session");
+                    RestartProcess();
+                    throw new OperationCanceledException(ct);
+                }
+
+                if (timeoutCts.IsCancellationRequested)
+                {
+                    AppLog.Warn("ExifTool command timed out before ready marker; restarting session");
+                    RestartProcess();
+                    return new ExifToolResult(-1, stdout.Output.TrimEnd(), stderr.TrimEnd(), true);
+                }
+
+                // EOF or process exit without the ready marker.
+                AppLog.Warn("ExifTool exited before ready marker; restarting session");
                 RestartProcess();
-                return new ExifToolResult(-1, "", "Command timed out, session restarted", true);
+                return new ExifToolResult(-1, stdout.Output.TrimEnd(), stderr.TrimEnd(), false);
             }
 
-            if (stdout.Length == 0 && stderr.Length == 0)
-            {
-                RestartProcess();
-                return new ExifToolResult(-1, "", "ExifTool produced no output, session restarted", false);
-            }
-
-            return new ExifToolResult(0, stdout.TrimEnd(), stderr.TrimEnd(), false);
+            return new ExifToolResult(0, stdout.Output.TrimEnd(), stderr.TrimEnd(), false);
         }
 
-        private async Task<string> ReadStdoutAsync(string readyMarker, CancellationToken ct)
+        private async Task<StdoutReadResult> ReadStdoutAsync(string readyMarker, CancellationToken ct)
         {
             var sb = new StringBuilder();
             try
@@ -204,13 +217,13 @@ namespace WpfApp1.Services
                 {
                     var line = await ReadLineAsync(_process?.StandardOutput, ct);
                     if (line == null) break;
-                    if (line == readyMarker) break;
+                    if (line == readyMarker) return new StdoutReadResult(sb.ToString(), true);
                     sb.AppendLine(line);
                 }
             }
             catch (OperationCanceledException) { }
             catch { }
-            return sb.ToString();
+            return new StdoutReadResult(sb.ToString(), false);
         }
 
         private async Task<string> DrainStderrAsync(CancellationToken ct)
@@ -262,7 +275,8 @@ namespace WpfApp1.Services
                     {
                         _process.StandardInput.Write("-stay_open\nFalse\n");
                         _process.StandardInput.Flush();
-                        _process.WaitForExit(ShutdownTimeoutMs);
+                        if (!_process.WaitForExit(ShutdownTimeoutMs))
+                            _process.Kill(true);
                     }
                     catch
                     {
@@ -272,6 +286,18 @@ namespace WpfApp1.Services
                 _process?.Dispose();
                 _process = null;
             }
+        }
+
+        private readonly struct StdoutReadResult
+        {
+            public StdoutReadResult(string output, bool readyMarkerSeen)
+            {
+                Output = output;
+                ReadyMarkerSeen = readyMarkerSeen;
+            }
+
+            public string Output { get; }
+            public bool ReadyMarkerSeen { get; }
         }
     }
 }

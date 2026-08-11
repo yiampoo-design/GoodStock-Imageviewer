@@ -8,6 +8,8 @@
     <ApplicationIcon></ApplicationIcon>
     <AssemblyName>WpfApp1</AssemblyName>
     <RootNamespace>WpfApp1</RootNamespace>
+    <Version>8.5.0</Version>
+    <InformationalVersion>8.5</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

@@ -16,7 +16,7 @@
         </Grid.RowDefinitions>
 
         <!-- Titlebar -->
-        <Border Grid.Row="0" Background="#161B22" MouseLeftButtonDown="Titlebar_MouseLeftButtonDown"
+        <Border Grid.Row="0" Background="{DynamicResource BgAltBrush}" MouseLeftButtonDown="Titlebar_MouseLeftButtonDown"
                 MouseMove="Titlebar_MouseMove" MouseLeftButtonUp="Titlebar_MouseLeftButtonUp">
             <Grid Margin="12,0">
                 <TextBlock Text="Manage Image Info (Metadata)" Foreground="{DynamicResource TextPrimaryBrush}"
@@ -179,7 +179,7 @@
         </ScrollViewer>
 
         <!-- Bottom buttons -->
-        <Border Grid.Row="2" Background="#161B22" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+        <Border Grid.Row="2" Background="{DynamicResource BgAltBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
             <Grid Margin="16,12">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="Reset from EXIF" Click="ResetFromExif_Click" Cursor="Hand"

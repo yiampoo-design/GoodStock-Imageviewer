@@ -492,8 +492,8 @@
                                    FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                         <Border Background="{DynamicResource BtnBgBrush}" CornerRadius="999"
                                 Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="Stable v8.5 · Windows 11" Foreground="{DynamicResource TextMutedBrush}"
-                                       FontSize="10" VerticalAlignment="Center"/>
+<TextBlock x:Name="VersionBadgeText" Text="Stable" Foreground="{DynamicResource TextMutedBrush}"
+                                           FontSize="10" VerticalAlignment="Center"/>
                         </Border>
                     </StackPanel>
 
@@ -528,7 +528,7 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <Button Style="{StaticResource MenuBtn}" Content="EN ▾" FontSize="11"/>
+                        <Button Style="{StaticResource MenuBtn}" Content="EN ▾" FontSize="11" IsEnabled="False" ToolTip="Localization — Coming soon"/>
                         <Button Style="{StaticResource ToolbarBtn}" Width="34" Height="28"
                                 Click="ToggleTheme_Click">
                             <Viewbox Width="16" Height="16">

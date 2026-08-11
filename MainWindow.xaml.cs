@@ -82,6 +82,11 @@ namespace WpfApp1
             DataContext = _viewModel;
             Loaded += MainWindow_Loaded;
             Closing += MainWindow_Closing;
+
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            var verText = version != null ? $"v{version.Major}.{version.Minor}" : "dev";
+            var isWin11 = Environment.OSVersion.Version.Build >= 22000;
+            VersionBadgeText.Text = $"Stable {verText} · {(isWin11 ? "Windows 11" : "Windows")}";
         }
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -1019,41 +1024,44 @@ namespace WpfApp1
                     PreflightKeywords.Text = "—";
                     return;
                 }
-                var ext = System.IO.Path.GetExtension(meta.FilePath).ToUpper().TrimStart('.');
-
-                PreflightDimensions.Text = meta.Width > 0
-                    ? $"{meta.Width}×{meta.Height} ({meta.Megapixels:F1} MP) — {(meta.Width >= 2000 && meta.Height >= 2000 ? "OK" : "Below 2000px minimum")}"
-                    : "Dimensions not available";
-
-                var accepted = new[] { "JPG", "JPEG", "TIFF", "TIF", "PNG" };
-                PreflightFormat.Text = accepted.Contains(ext) ? $"{ext} — Accepted" : $"{ext} — Not a standard stock format";
-
-                PreflightIcc.Text = string.IsNullOrEmpty(meta.IccProfile) ? "No ICC profile detected" : meta.IccProfile;
-
-                var missing = new List<string>();
-                if (string.IsNullOrWhiteSpace(meta.Title)) missing.Add("Title");
-                if (string.IsNullOrWhiteSpace(meta.Description)) missing.Add("Description");
-                if (meta.Keywords.Count == 0) missing.Add("Keywords");
-                if (string.IsNullOrWhiteSpace(meta.Creator)) missing.Add("Creator");
-                if (string.IsNullOrWhiteSpace(meta.Copyright)) missing.Add("Copyright");
-                PreflightMetadata.Text = missing.Count == 0 ? "All required fields present" : $"Missing: {string.Join(", ", missing)}";
-
-                PreflightGps.Text = (meta.GpsLatitude != null || meta.GpsLongitude != null)
-                    ? "GPS data present — consider removing for privacy"
-                    : "No GPS data";
-
-                if (meta.Keywords.Count > 0)
+                // Canonical engine: render the StockPreflightService report.
+                var report = StockPreflightService.RunCheck(meta);
+                string StatusText(PreflightCheck c) => c.Status switch
                 {
-                    var lower = meta.Keywords.Select(k => k.Trim().ToLowerInvariant()).ToList();
-                    var dupes = lower.GroupBy(x => x).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
-                    PreflightKeywords.Text = dupes.Count == 0
-                        ? $"{meta.Keywords.Count} unique keywords"
-                        : $"{dupes.Count} duplicate(s): {string.Join(", ", dupes.Take(3))}";
-                }
-                else
+                    PreflightStatus.NeedsAttention => $"⚠ {c.Message}",
+                    PreflightStatus.Warning => $"△ {c.Message}",
+                    _ => c.Message,
+                };
+
+                foreach (var check in report.Checks)
                 {
-                    PreflightKeywords.Text = "No keywords";
+                    switch (check.Name)
+                    {
+                        case "Dimensions":
+                            PreflightDimensions.Text = StatusText(check);
+                            break;
+                        case "Format":
+                            PreflightFormat.Text = StatusText(check);
+                            break;
+                        case "ICC Profile":
+                            PreflightIcc.Text = StatusText(check);
+                            break;
+                        case "Metadata":
+                            PreflightMetadata.Text = StatusText(check);
+                            break;
+                        case "GPS Privacy":
+                            PreflightGps.Text = StatusText(check);
+                            break;
+                        case "Keywords":
+                            PreflightKeywords.Text = StatusText(check);
+                            break;
+                    }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                // A newer preflight superseded this run; do not clobber its
+                // results with a stale "Error running preflight" message.
             }
             catch
             {
@@ -1216,8 +1224,13 @@ namespace WpfApp1
                 var paths = _selectedItems.Select(i => i.FilePath).ToList();
                 var result = await _fileOps.DeleteToRecycleBinAsync(paths);
 
+                // Only remove items that were actually deleted; anything still
+                // present on disk (a failed delete) must remain listed.
                 foreach (var item in _selectedItems.ToList())
-                    _thumbs.Remove(item);
+                {
+                    if (!File.Exists(item.FilePath) && !Directory.Exists(item.FilePath))
+                        _thumbs.Remove(item);
+                }
 
                 ClearSelection();
                 StatusFiles.Text = $"{_thumbs.Count} items";
@@ -1411,14 +1424,14 @@ namespace WpfApp1
             }
         }
 
-        private void CtxPaste_Click(object sender, RoutedEventArgs e)
+        private async void CtxPaste_Click(object sender, RoutedEventArgs e)
         {
             if (_clipboardItem == null || string.IsNullOrEmpty(_currentFolder)) return;
             try
             {
-                string dest = Path.Combine(_currentFolder, _clipboardItem.FileName);
                 if (_clipboardItem.IsFolder)
                 {
+                    string dest = Path.Combine(_currentFolder, _clipboardItem.FileName);
                     if (_clipboardIsCut)
                         Directory.Move(_clipboardItem.FilePath, dest);
                     else
@@ -1426,10 +1439,15 @@ namespace WpfApp1
                 }
                 else
                 {
-                    if (_clipboardIsCut)
-                        File.Move(_clipboardItem.FilePath, dest);
-                    else
-                        File.Copy(_clipboardItem.FilePath, dest, false);
+                    var result = _clipboardIsCut
+                        ? await _fileOps.MoveFilesAsync(new[] { _clipboardItem.FilePath }, _currentFolder)
+                        : await _fileOps.CopyFilesAsync(new[] { _clipboardItem.FilePath }, _currentFolder);
+                    if (result.Errors.Count > 0)
+                    {
+                        MessageBox.Show($"Paste failed:\n{string.Join("\n", result.Errors.Take(5))}",
+                            "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
                 }
 
                 _clipboardItem = null;
@@ -1517,7 +1535,7 @@ namespace WpfApp1
 
             ShowOverlay(ViewerOverlay);
             ViewerTitle.Text = item.FileName;
-            ViewerCounter.Text = $"#{item.Index} of {_thumbs.Count}";
+            ViewerCounter.Text = $"#{item.Index} of {_thumbs.Count(t => !t.IsFolder)}";
             ViewerZoom.Text = "100%";
             _viewerZoom = 1.0;
             _viewerRotation = 0;
@@ -1849,6 +1867,8 @@ namespace WpfApp1
 
         private bool _clippingWarningEnabled = false;
         private WriteableBitmap? _clippingBitmap;
+        private int _clippingGeneration;
+        private CancellationTokenSource? _clippingCts;
 
         private void ClippingWarning_Click(object sender, RoutedEventArgs e)
         {
@@ -1860,6 +1880,10 @@ namespace WpfApp1
             }
             else
             {
+                // Toggled off: cancel any in-flight analysis so the overlay can
+                // never reappear after the user disabled it.
+                Interlocked.Increment(ref _clippingGeneration);
+                _clippingCts?.Cancel();
                 ClippingOverlay.Source = null;
                 _clippingBitmap = null;
             }
@@ -1869,20 +1893,34 @@ namespace WpfApp1
         {
             if (ViewerImage.Source is not BitmapSource src) return;
 
-            _ = GenerateClippingOverlayAsync(src);
+            var generation = Interlocked.Increment(ref _clippingGeneration);
+            _clippingCts?.Cancel();
+            _clippingCts = new CancellationTokenSource();
+            _ = GenerateClippingOverlayAsync(src, generation, _clippingCts.Token);
         }
 
-        private async Task GenerateClippingOverlayAsync(BitmapSource src)
+        private async Task GenerateClippingOverlayAsync(BitmapSource src, int generation, CancellationToken ct)
         {
             try
             {
-                var sourcePath = _isInViewer ? _viewerCurrentPath : _currentPreviewPath;
-                var downscaled = await ImageDecodeService.LoadAnalysisBitmapAsync(sourcePath ?? "", 512) ?? src;
+                var requestedPath = _isInViewer ? _viewerCurrentPath : _currentPreviewPath;
+                var downscaled = await ImageDecodeService.LoadAnalysisBitmapAsync(requestedPath ?? "", 512, ct) ?? src;
+                ct.ThrowIfCancellationRequested();
                 var overlay = ClippingAnalyzer.GenerateOverlay(downscaled, ClippingMode.RgbChannels);
                 overlay.Freeze();
+
+                // Only apply this result if it is still the latest request,
+                // the user still has clipping enabled, and we are still on the
+                // same image -- otherwise a stale overlay could replace a newer one.
+                if (generation != _clippingGeneration) return;
+                if (!_clippingWarningEnabled) return;
+                if (!string.Equals(_isInViewer ? _viewerCurrentPath : _currentPreviewPath, requestedPath, StringComparison.OrdinalIgnoreCase)) return;
+                if (ct.IsCancellationRequested) return;
+
                 _clippingBitmap = overlay;
                 ClippingOverlay.Source = overlay;
             }
+            catch (OperationCanceledException) { }
             catch { }
         }
 
@@ -2001,7 +2039,7 @@ namespace WpfApp1
                     var destExt = Path.GetExtension(dlg.FileName).ToLower();
                     var srcExt = Path.GetExtension(sourcePath).ToLower();
 
-                    BitmapDecoder decoder;
+                    BitmapDecoder? decoder;
                     using (var fs = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
                         decoder = srcExt switch
@@ -2010,8 +2048,13 @@ namespace WpfApp1
                             ".bmp" => new BmpBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad),
                             ".tiff" or ".tif" => new TiffBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad),
                             ".gif" => new GifBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad),
-                            _ => new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad)
+                            _ => null
                         };
+
+                        // Fail early for formats WPF has no built-in decoder for,
+                        // instead of silently producing a corrupt/blank save.
+                        if (decoder == null)
+                            throw new NotSupportedException($".{srcExt} is not supported by Save As. Convert the file to a standard format first.");
                     }
 
                     if (decoder.Frames.Count == 0)
@@ -2059,15 +2102,22 @@ namespace WpfApp1
 
             var dest = dlg.FolderName;
             var filesToCopy = new List<string>();
+            int foldersSkipped = 0;
 
             if (_selectedItems.Count > 0)
+            {
+                var folders = _selectedItems.Where(i => i.IsFolder).ToList();
+                foldersSkipped = folders.Count;
                 filesToCopy.AddRange(_selectedItems.Where(i => !i.IsFolder).Select(i => i.FilePath));
+            }
             else if (!string.IsNullOrEmpty(_currentPreviewPath) && File.Exists(_currentPreviewPath))
                 filesToCopy.Add(_currentPreviewPath);
 
             var result = await _fileOps.CopyFilesAsync(filesToCopy, dest);
             StatusSelection.Text = result.Errors.Count == 0
-                ? $"Copied {result.FilesProcessed} file(s)"
+                ? foldersSkipped > 0
+                    ? $"Copied {result.FilesProcessed} file(s) ({foldersSkipped} folder(s) cannot be copied)"
+                    : $"Copied {result.FilesProcessed} file(s)"
                 : $"Copied {result.FilesProcessed} file(s), {result.Errors.Count} error(s)";
         }
 
@@ -2080,9 +2130,13 @@ namespace WpfApp1
 
             var dest = dlg.FolderName;
             var filesToMove = new List<string>();
+            int foldersSkipped = 0;
 
             if (_selectedItems.Count > 0)
+            {
+                foldersSkipped = _selectedItems.Count(i => i.IsFolder);
                 filesToMove.AddRange(_selectedItems.Where(i => !i.IsFolder).Select(i => i.FilePath));
+            }
             else if (!string.IsNullOrEmpty(_currentPreviewPath) && File.Exists(_currentPreviewPath))
                 filesToMove.Add(_currentPreviewPath);
 
@@ -2095,7 +2149,9 @@ namespace WpfApp1
                     LoadFolder(_currentFolder);
             }
             StatusSelection.Text = result.Errors.Count == 0
-                ? $"Moved {result.FilesProcessed} file(s)"
+                ? foldersSkipped > 0
+                    ? $"Moved {result.FilesProcessed} file(s) ({foldersSkipped} folder(s) cannot be moved)"
+                    : $"Moved {result.FilesProcessed} file(s)"
                 : $"Moved {result.FilesProcessed} file(s), {result.Errors.Count} error(s)";
         }
 

@@ -127,24 +127,46 @@ namespace WpfApp1.Services
                 var mismatches = new List<string>();
                 if (verified_meta != null)
                 {
-                    if (patch.Title != null && verified_meta.Title != patch.Title)
-                        mismatches.Add($"Title: expected '{patch.Title}', got '{verified_meta.Title}'");
-                    if (patch.Description != null && verified_meta.Description != patch.Description)
-                        mismatches.Add("Description mismatch");
-                    if (patch.Creator != null && verified_meta.Creator != patch.Creator)
-                        mismatches.Add($"Creator: expected '{patch.Creator}', got '{verified_meta.Creator}'");
-                    if (patch.Copyright != null && verified_meta.Copyright != patch.Copyright)
-                        mismatches.Add($"Copyright: expected '{patch.Copyright}', got '{verified_meta.Copyright}'");
-                    if (patch.Keywords != null)
+                    VerifyField(patch, verified_meta.Title, "Title",
+                        setValue: patch.Title,
+                        normalize: s => s,
+                        mismatches);
+
+                    VerifyField(patch, verified_meta.Description, "Description",
+                        setValue: patch.Description,
+                        normalize: s => s,
+                        mismatches);
+
+                    VerifyField(patch, verified_meta.Creator, "Creator",
+                        setValue: patch.Creator,
+                        normalize: s => s,
+                        mismatches);
+
+                    VerifyField(patch, verified_meta.Copyright, "Copyright",
+                        setValue: patch.Copyright,
+                        normalize: s => s,
+                        mismatches);
+
+                    if (patch.KeywordsAction != FieldAction.Unchanged)
                     {
-                        var expected = string.Join(", ", patch.Keywords.OrderBy(k => k));
-                        var actual = verified_meta.Keywords.Count > 0 ? string.Join(", ", verified_meta.Keywords.OrderBy(k => k)) : "";
-                        if (expected != actual)
+                        var expected = patch.KeywordsAction == FieldAction.Clear
+                            ? ""
+                            : string.Join(", ", patch.Keywords == null ? new List<string>() : patch.Keywords.OrderBy(k => k));
+                        var actual = verified_meta.Keywords.Count > 0
+                            ? string.Join(", ", verified_meta.Keywords.OrderBy(k => k))
+                            : "";
+                        if (!string.Equals(expected, actual, StringComparison.Ordinal))
                             mismatches.Add($"Keywords: expected '{expected}', got '{actual}'");
                     }
-                    if (patch.DateTaken != null)
+
+                    if (patch.DateTakenAction != FieldAction.Unchanged)
                     {
-                        if (verified_meta.DateTaken == null)
+                        if (patch.DateTakenAction == FieldAction.Clear)
+                        {
+                            if (verified_meta.DateTaken != null)
+                                mismatches.Add($"DateTaken: expected cleared, got '{verified_meta.DateTaken}'");
+                        }
+                        else if (verified_meta.DateTaken == null)
                         {
                             mismatches.Add("DateTaken: expected value but got null");
                         }
@@ -159,6 +181,12 @@ namespace WpfApp1.Services
                             mismatches.Add($"DateTaken: user input '{patch.DateTaken}' is not a valid date");
                         }
                     }
+                }
+                else
+                {
+                    // Readback returned no metadata at all; any requested set is a failure.
+                    foreach (var name in patch.RequestedFieldNames())
+                        mismatches.Add($"{name}: readback returned no metadata");
                 }
 
                 bool verificationPassed = verified_meta != null && mismatches.Count == 0;
@@ -185,6 +213,26 @@ namespace WpfApp1.Services
             finally
             {
                 try { File.Delete(backupPath); } catch { }
+            }
+        }
+
+        private static void VerifyField(
+            MetadataPatch patch,
+            string? verifiedValue,
+            string fieldName,
+            string? setValue,
+            Func<string?, string?> normalize,
+            List<string> mismatches)
+        {
+            if (patch.IsClearRequested(fieldName))
+            {
+                if (!string.IsNullOrWhiteSpace(verifiedValue))
+                    mismatches.Add($"{fieldName}: expected cleared, got '{verifiedValue}'");
+            }
+            else if (patch.RequestedFieldNames().Contains(fieldName))
+            {
+                if (!string.Equals(normalize(verifiedValue), normalize(setValue), StringComparison.Ordinal))
+                    mismatches.Add($"{fieldName}: expected '{setValue}', got '{verifiedValue}'");
             }
         }
 
