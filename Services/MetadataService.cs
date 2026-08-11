@@ -65,7 +65,7 @@ namespace WpfApp1.Services
                     "-FocalLength", "-FNumber", "-ExposureTime", "-ISO",
                     "-Orientation", "-ImageWidth", "-ImageHeight",
                     "-FileSize", "-FileType", "-Rating",
-                    "-GPSLatitude", "-GPSLongitude",
+                    "-GPSLatitude#", "-GPSLongitude#",
                     "-GPSLatitudeRef", "-GPSLongitudeRef",
                     "-ColorSpace", "-ICC_Profile:ProfileDescription",
                     "--", filePath

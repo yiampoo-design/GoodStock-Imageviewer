@@ -85,22 +85,34 @@ namespace WpfApp1.Models
             var digStr = ResolveTag(element, "ExifIFD:DateTimeDigitized");
             if (DateTime.TryParse(digStr, out var digDt)) meta.DateDigitized = digDt;
 
-            var latStr = ResolveTag(element, "GPS:GPSLatitude", "GPSLatitude");
-            var latRef = ResolveTag(element, "GPS:GPSLatitudeRef", "GPSLatitudeRef");
-            if (latStr != null)
+            var latStr = ResolveTag(element, "GPS:GPSLatitude#", "GPSLatitude#", "GPS:GPSLatitude", "GPSLatitude");
+            if (latStr != null && double.TryParse(latStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var latSigned))
+            {
+                meta.GpsLatitude = latSigned;
+            }
+            else if (latStr != null)
             {
                 var latVal = ParseDmsToDecimal(latStr);
                 if (latVal != null)
+                {
+                    var latRef = ResolveTag(element, "GPS:GPSLatitudeRef", "GPSLatitudeRef");
                     meta.GpsLatitude = string.Equals(latRef, "S", StringComparison.OrdinalIgnoreCase) ? -latVal.Value : latVal.Value;
+                }
             }
 
-            var lonStr = ResolveTag(element, "GPS:GPSLongitude", "GPSLongitude");
-            var lonRef = ResolveTag(element, "GPS:GPSLongitudeRef", "GPSLongitudeRef");
-            if (lonStr != null)
+            var lonStr = ResolveTag(element, "GPS:GPSLongitude#", "GPSLongitude#", "GPS:GPSLongitude", "GPSLongitude");
+            if (lonStr != null && double.TryParse(lonStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lonSigned))
+            {
+                meta.GpsLongitude = lonSigned;
+            }
+            else if (lonStr != null)
             {
                 var lonVal = ParseDmsToDecimal(lonStr);
                 if (lonVal != null)
+                {
+                    var lonRef = ResolveTag(element, "GPS:GPSLongitudeRef", "GPSLongitudeRef");
                     meta.GpsLongitude = string.Equals(lonRef, "W", StringComparison.OrdinalIgnoreCase) ? -lonVal.Value : lonVal.Value;
+                }
             }
 
             if (int.TryParse(ResolveTag(element, "IFD0:ImageWidth", "ExifIFD:ImageWidth"), out var w))
