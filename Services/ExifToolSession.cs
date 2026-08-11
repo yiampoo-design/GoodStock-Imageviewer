@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -14,11 +15,14 @@ namespace WpfApp1.Services
         private readonly string _binaryPath;
         private readonly object _lock = new();
         private readonly SemaphoreSlim _commandSemaphore = new(1, 1);
+        private ConcurrentQueue<string> _stderrQueue = new();
+        private CancellationTokenSource? _pumpCts;
         private bool _disposed;
         private int _requestCounter;
         private const int DefaultTimeoutMs = 30000;
         private const int ShutdownTimeoutMs = 5000;
         private const int RestartDelayMs = 500;
+        private const int StderrSettleMs = 120;
 
         public ExifToolSession(string binaryPath)
         {
@@ -44,6 +48,10 @@ namespace WpfApp1.Services
 
         private void StartProcessUnlocked()
         {
+            _pumpCts?.Cancel();
+            _pumpCts?.Dispose();
+            _stderrQueue = new ConcurrentQueue<string>();
+
             _process?.Dispose();
             _process = new Process
             {
@@ -62,6 +70,25 @@ namespace WpfApp1.Services
                 EnableRaisingEvents = true,
             };
             _process.Start();
+            AppLog.Info($"ExifTool session started ({_binaryPath})");
+
+            _pumpCts = new CancellationTokenSource();
+            _ = PumpStderrAsync(_pumpCts.Token);
+        }
+
+        private async Task PumpStderrAsync(CancellationToken ct)
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    var line = await ReadLineAsync(_process?.StandardError, ct);
+                    if (line == null) break;
+                    _stderrQueue.Enqueue(line);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch { }
         }
 
         private void RestartProcess()
@@ -69,6 +96,7 @@ namespace WpfApp1.Services
             AppLog.Warn("ExifTool session crashed, restarting");
             lock (_lock)
             {
+                _pumpCts?.Cancel();
                 try { _process?.Kill(); } catch { }
                 _process?.Dispose();
                 _process = null;
@@ -108,6 +136,8 @@ namespace WpfApp1.Services
                     return new ExifToolResult(-1, "", "ExifTool session not running", false);
             }
 
+            while (_stderrQueue.TryDequeue(out _)) { }
+
             var requestId = Interlocked.Increment(ref _requestCounter);
             var readyMarker = $"{{ready{requestId}}}";
 
@@ -140,64 +170,75 @@ namespace WpfApp1.Services
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeoutCts.CancelAfter(effectiveTimeout);
 
-            var stdoutTask = Task.Run(async () =>
-            {
-                var sb = new StringBuilder();
-                try
-                {
-                    while (!timeoutCts.Token.IsCancellationRequested)
-                    {
-                        var line = await ReadLineAsync(_process?.StandardOutput);
-                        if (line == null) break;
-                        if (line == readyMarker) break;
-                        sb.AppendLine(line);
-                    }
-                }
-                catch (OperationCanceledException) { }
-                catch { }
-                return sb.ToString();
-            }, timeoutCts.Token);
+            var stdout = await ReadStdoutAsync(readyMarker, timeoutCts.Token);
+            var stderr = await DrainStderrAsync(timeoutCts.Token);
 
-            var stderrTask = Task.Run(async () =>
+            if (timeoutCts.IsCancellationRequested && !ct.IsCancellationRequested)
             {
-                var sb = new StringBuilder();
-                try
-                {
-                    while (!timeoutCts.Token.IsCancellationRequested)
-                    {
-                        var line = await ReadLineAsync(_process?.StandardError);
-                        if (line == null) break;
-                        if (line.StartsWith("{ready")) break;
-                        sb.AppendLine(line);
-                    }
-                }
-                catch (OperationCanceledException) { }
-                catch { }
-                return sb.ToString();
-            }, timeoutCts.Token);
-
-            try
-            {
-                var stdout = await stdoutTask;
-                var stderr = await stderrTask;
-                return new ExifToolResult(0, stdout.TrimEnd(), stderr.TrimEnd(), false);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
+                AppLog.Warn("ExifTool command timed out");
                 RestartProcess();
                 return new ExifToolResult(-1, "", "Command timed out, session restarted", true);
             }
-            catch (Exception ex)
+
+            if (stdout.Length == 0 && stderr.Length == 0)
             {
                 RestartProcess();
-                return new ExifToolResult(-1, "", $"Command failed, session restarted: {ex.Message}", false);
+                return new ExifToolResult(-1, "", "ExifTool produced no output, session restarted", false);
             }
+
+            return new ExifToolResult(0, stdout.TrimEnd(), stderr.TrimEnd(), false);
         }
 
-        private static async Task<string?> ReadLineAsync(System.IO.StreamReader? reader)
+        private async Task<string> ReadStdoutAsync(string readyMarker, CancellationToken ct)
+        {
+            var sb = new StringBuilder();
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    var line = await ReadLineAsync(_process?.StandardOutput, ct);
+                    if (line == null) break;
+                    if (line == readyMarker) break;
+                    sb.AppendLine(line);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch { }
+            return sb.ToString();
+        }
+
+        private async Task<string> DrainStderrAsync(CancellationToken ct)
+        {
+            var lines = new List<string>();
+            try
+            {
+                var quiet = 0;
+                while (!ct.IsCancellationRequested)
+                {
+                    bool drained = false;
+                    while (_stderrQueue.TryDequeue(out var line))
+                    {
+                        lines.Add(line);
+                        drained = true;
+                    }
+                    if (drained) { quiet = 0; }
+                    else
+                    {
+                        if (++quiet >= 2) break;
+                        await Task.Delay(StderrSettleMs, ct);
+                    }
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch { }
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        private static async Task<string?> ReadLineAsync(System.IO.StreamReader? reader, CancellationToken ct)
         {
             if (reader == null) return null;
-            try { return await reader.ReadLineAsync(); }
+            try { return await reader.ReadLineAsync(ct); }
+            catch (OperationCanceledException) { return null; }
             catch { return null; }
         }
 
@@ -208,6 +249,7 @@ namespace WpfApp1.Services
             _commandSemaphore.Dispose();
             lock (_lock)
             {
+                _pumpCts?.Cancel();
                 if (_process != null && !_process.HasExited)
                 {
                     try
