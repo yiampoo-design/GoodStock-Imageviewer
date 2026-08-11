@@ -539,9 +539,9 @@
                         <Button Style="{StaticResource MenuBtn}" Content="Edit"/>
                         <Button Style="{StaticResource MenuBtn}" Content="View"/>
                         <Button Style="{StaticResource MenuBtn}" Content="Tools"/>
-                        <Button Style="{StaticResource MenuBtn}" Content="Tag"/>
-                        <Button Style="{StaticResource MenuBtn}" Content="Create"/>
-                        <Button Style="{StaticResource MenuBtn}" Content="Favorites"/>
+                        <Button Style="{StaticResource MenuBtn}" Content="Tag" IsEnabled="False" ToolTip="Coming soon"/>
+                        <Button Style="{StaticResource MenuBtn}" Content="Create" IsEnabled="False" ToolTip="Coming soon"/>
+                        <Button Style="{StaticResource MenuBtn}" Content="Favorites" IsEnabled="False" ToolTip="Coming soon"/>
                         <Button Style="{StaticResource MenuBtn}" Content="Settings"/>
                         <Button Style="{StaticResource MenuBtn}" Content="Help"/>
                     </StackPanel>
@@ -587,7 +587,7 @@
                         </Viewbox>
                     </Button>
                     <!-- Print -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Print (Ctrl+P)">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Print — Coming soon" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M6 9 6 2 18 2 18 9 M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2 M6 14h12v8H6z"
@@ -597,7 +597,7 @@
                         </Viewbox>
                     </Button>
                     <!-- Email -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Email">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Email — Coming soon" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6 12 13 2 6"
@@ -685,7 +685,7 @@
                         </Viewbox>
                     </Button>
                     <!-- Compare -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Compare">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Compare — Coming soon" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M3 3h18a2 2 0 012 2v14a2 2 0 01-2 2H3a2 2 0 01-2-2V5a2 2 0 012-2z M12 3v18"
@@ -698,7 +698,7 @@
                     <Border Width="1" Height="18" Background="{StaticResource BorderBrush}" Margin="6,0"/>
 
                     <!-- Convert -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Convert">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Convert — Coming soon" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M17 2l4 4-4 4 M3 11v-1a4 4 0 014-4h14 M7 22l-4-4 4-4 M21 13v1a4 4 0 01-4 4H3"
@@ -708,7 +708,7 @@
                         </Viewbox>
                     </Button>
                     <!-- Batch Convert -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Batch Convert" Click="MenuBatchConvert_Click">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Batch Convert — Coming soon" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M17 2l4 4-4 4 M3 11v-1a4 4 0 014-4h14 M7 22l-4-4 4-4 M21 13v1a4 4 0 01-4 4H3"
@@ -718,7 +718,7 @@
                         </Viewbox>
                     </Button>
                     <!-- Slideshow -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Slideshow (F5)">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Slideshow — Coming soon" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M5 3l14 9-14 9V3z"
@@ -728,7 +728,7 @@
                         </Viewbox>
                     </Button>
                     <!-- Capture -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Capture">
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Capture — Coming soon" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M14.5 4h-5L7 7H4a2 2 0 00-2 2v9a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2h-3l-2.5-3z"

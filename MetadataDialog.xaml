@@ -89,11 +89,11 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Category" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <TextBlock Text="Category — Coming soon" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
                         <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1">
                             <ComboBox x:Name="MetaCategory" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
-                                      BorderThickness="0" Padding="8,6" FontSize="13">
+                                      BorderThickness="0" Padding="8,6" FontSize="13" IsEnabled="False">
                                 <ComboBoxItem Content="-" IsSelected="True"/>
                                 <ComboBoxItem Content="Landscape"/>
                                 <ComboBoxItem Content="Portrait"/>
@@ -107,10 +107,11 @@
                         </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="Country / Location" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <TextBlock Text="Country / Location — Coming soon" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
                         <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1">
                             <TextBox x:Name="MetaLocation" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
+                                     IsEnabled="False"
                                      BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{StaticResource AccentBrush}"/>
                         </Border>
                     </StackPanel>
@@ -157,10 +158,11 @@
                         </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="License" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <TextBlock Text="License — Coming soon" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
                         <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1">
                             <ComboBox x:Name="MetaLicense" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
+                                      IsEnabled="False"
                                       BorderThickness="0" Padding="8,6" FontSize="13">
                                 <ComboBoxItem Content="-" IsSelected="True"/>
                                 <ComboBoxItem Content="All Rights Reserved"/>
