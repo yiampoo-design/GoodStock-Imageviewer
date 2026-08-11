@@ -1440,6 +1440,11 @@ namespace WpfApp1
 
         private static void CopyDirectory(string sourceDir, string destDir)
         {
+            var sourceFull = Path.GetFullPath(sourceDir).TrimEnd('\\', '/');
+            var destFull = Path.GetFullPath(destDir).TrimEnd('\\', '/');
+            if (destFull.StartsWith(sourceFull + "\\", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Cannot copy a folder into itself.");
+
             Directory.CreateDirectory(destDir);
             foreach (var file in Directory.GetFiles(sourceDir))
                 File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), false);
