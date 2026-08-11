@@ -1,0 +1,150 @@
+GOODSTOCK IMAGE VIEWER — RUNTIME ACCEPTANCE CHECKLIST
+======================================================
+Commit: _______________
+Date:   _______________
+
+Instructions: Test each item on Windows 11. Mark PASS or FAIL.
+Use COPIES of test files — never originals.
+
+----------------------------------------------------------------------
+VIEWER
+----------------------------------------------------------------------
+[ ] Open JPG image — displays correctly
+[ ] Open PNG image — displays correctly
+[ ] Open TIFF image — displays correctly
+[ ] Next image (Right arrow) — loads next
+[ ] Previous image (Left arrow) — loads previous
+[ ] Zoom in/out — scales correctly
+[ ] Pan — moves image when zoomed
+[ ] Viewer rotate — not available (disabled)
+[ ] Fullscreen (F11) — enters/exits fullscreen
+[ ] Clipping on (J) — shows clipping overlay
+[ ] Clipping off (J) — hides clipping overlay
+[ ] Navigate next while clipping enabled — overlay updates to new image
+
+----------------------------------------------------------------------
+METADATA
+----------------------------------------------------------------------
+[ ] Read title from file
+[ ] Read description from file
+[ ] Read keywords from file
+[ ] Read creator from file
+[ ] Read copyright from file
+[ ] Read EXIF camera (Make + Model)
+[ ] Read lens model
+[ ] Read focal length
+[ ] Read f-number
+[ ] Read shutter speed
+[ ] Read ISO
+[ ] Read date taken
+[ ] Write title — verify on reload
+[ ] Write description — verify on reload
+[ ] Write keywords — verify on reload
+[ ] Write creator — verify on reload
+[ ] Write copyright — verify on reload
+[ ] Write date taken — verify on reload
+[ ] Close and reopen — metadata persists
+
+----------------------------------------------------------------------
+UNICODE
+----------------------------------------------------------------------
+[ ] Thai filename — opens and displays
+[ ] Thai folder — navigates correctly
+[ ] Thai title — reads/writes correctly
+[ ] Thai description — reads/writes correctly
+[ ] Thai keywords — reads/writes correctly
+
+----------------------------------------------------------------------
+GPS
+----------------------------------------------------------------------
+[ ] Image with no GPS — shows "No GPS data"
+[ ] North/East coordinates — positive lat, positive lon
+[ ] South/East coordinates — negative lat, positive lon
+[ ] North/West coordinates — positive lat, negative lon
+[ ] South/West coordinates — negative lat, negative lon
+
+----------------------------------------------------------------------
+FILE OPERATIONS
+----------------------------------------------------------------------
+[ ] Rename (F2) — renames file
+[ ] Delete (Del) — moves to recycle bin
+[ ] Copy to folder — copies file
+[ ] Move to folder — moves file
+[ ] Cut/Paste — moves file
+[ ] Copy/Paste — copies file
+[ ] Folder copy — copies directory
+[ ] Folder move — moves directory
+
+----------------------------------------------------------------------
+SAVE AS
+----------------------------------------------------------------------
+[ ] JPG -> PNG — output opens, dimensions match
+[ ] PNG -> JPG — output opens, dimensions match
+[ ] TIFF -> JPG — output opens, dimensions match
+[ ] Large image (6000x4000) — completes without error
+
+----------------------------------------------------------------------
+HISTOGRAM
+----------------------------------------------------------------------
+[ ] Valid JPG — shows histogram bars
+[ ] Valid PNG — shows histogram bars
+[ ] Change images rapidly — no crash, updates correctly
+[ ] Unsupported/decode failure — shows empty, no fake data
+
+----------------------------------------------------------------------
+PREFLIGHT
+----------------------------------------------------------------------
+[ ] File with complete metadata — all checks pass
+[ ] Missing title — shows "Missing: Title"
+[ ] Missing keywords — shows "Missing: Keywords"
+[ ] GPS detected — shows privacy warning
+[ ] No GPS — shows "No GPS data"
+[ ] Rapidly change selected image — no stale data shown
+
+----------------------------------------------------------------------
+FIRST RUN
+----------------------------------------------------------------------
+[ ] ExifTool absent — badge shows "Installing..."
+[ ] Install completes — badge disappears
+[ ] Metadata works immediately — no restart required
+
+----------------------------------------------------------------------
+DEAD UI
+----------------------------------------------------------------------
+[ ] Print button — disabled, "Coming soon"
+[ ] Email button — disabled, "Coming soon"
+[ ] Compare button — disabled, "Coming soon"
+[ ] Convert button — disabled, "Coming soon"
+[ ] Batch Convert button — disabled, "Coming soon"
+[ ] Slideshow button — disabled, "Coming soon"
+[ ] Capture button — disabled, "Coming soon"
+[ ] Rotate button — disabled, "Coming soon"
+[ ] Crop button — disabled, "Coming soon"
+[ ] Draw button — disabled, "Coming soon"
+[ ] Tag menu — disabled, "Coming soon"
+[ ] Create menu — disabled, "Coming soon"
+[ ] Favorites menu — disabled, "Coming soon"
+[ ] Metadata Category — disabled, "Coming soon"
+[ ] Metadata Country/Location — disabled, "Coming soon"
+[ ] Metadata License — disabled, "Coming soon"
+
+----------------------------------------------------------------------
+EXIFTOOL SESSION
+----------------------------------------------------------------------
+[ ] Only one exiftool.exe process during normal use
+[ ] No hanging reads after 100 image opens
+[ ] No zombie exiftool.exe after app exit
+[ ] Session restarts after timeout
+
+----------------------------------------------------------------------
+SUMMARY
+----------------------------------------------------------------------
+Total tests:  ___
+Passed:       ___
+Failed:       ___
+
+Verdict: [ ] PASS  [ ] FAIL
+
+Failed items:
+_________________________________________________________________
+_________________________________________________________________

@@ -66,6 +66,7 @@ namespace WpfApp1.Services
 
         private void RestartProcess()
         {
+            AppLog.Warn("ExifTool session crashed, restarting");
             lock (_lock)
             {
                 try { _process?.Kill(); } catch { }
@@ -74,6 +75,7 @@ namespace WpfApp1.Services
                 Thread.Sleep(RestartDelayMs);
                 StartProcessUnlocked();
             }
+            AppLog.Info("ExifTool session restarted");
         }
 
         public async Task<ExifToolResult> RunCommandAsync(

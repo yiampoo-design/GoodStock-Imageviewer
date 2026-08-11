@@ -162,6 +162,7 @@ namespace WpfApp1.Services
                 bool verificationPassed = verified_meta != null && mismatches.Count == 0;
                 if (!verificationPassed)
                 {
+                    AppLog.Warn($"Metadata verification failed for {Path.GetFileName(filePath)}: {string.Join("; ", mismatches)}");
                     try { File.Copy(backupPath, filePath, true); } catch { }
                 }
 
