@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ namespace WpfApp1.Services
     {
         private readonly string? _exifToolPath;
         private readonly MetadataCacheService _cacheService;
+        private ExifToolSession? _session;
         private bool _disposed;
 
         public string? ExifToolPath => _exifToolPath;
@@ -30,6 +32,8 @@ namespace WpfApp1.Services
             var inspection = ExifToolService.Inspect(appTools, writableTools);
             _exifToolPath = inspection.Valid ? inspection.BinaryPath : null;
             _cacheService = new MetadataCacheService();
+            if (_exifToolPath != null)
+                _session = new ExifToolSession(_exifToolPath);
         }
 
         public async Task<bool> IsAvailableAsync()
@@ -37,7 +41,8 @@ namespace WpfApp1.Services
             if (_exifToolPath == null) return false;
             try
             {
-                var result = await ExifToolRunner.RunAsync(_exifToolPath,
+                _session?.EnsureRunning();
+                var result = await _session!.RunCommandAsync(
                     new[] { "-ver" }, TimeSpan.FromSeconds(5));
                 return result.ExitCode == 0;
             }
@@ -54,6 +59,7 @@ namespace WpfApp1.Services
                 var cached = _cacheService.GetCached(filePath);
                 if (cached != null) return cached;
 
+                _session?.EnsureRunning();
                 var args = new[]
                 {
                     "-json", "-G1",
@@ -64,14 +70,15 @@ namespace WpfApp1.Services
                     "-ImageDescription", "-Artist", "-Copyright",
                     "-DateTimeOriginal", "-DateTime",
                     "-Make", "-Model", "-LensModel",
+                    "-FocalLength", "-FNumber", "-ExposureTime", "-ISO",
                     "-Orientation", "-ImageWidth", "-ImageHeight",
                     "-FileSize", "-FileType", "-Rating",
-                    "-GPSLatitude#", "-GPSLongitude#",
+                    "-GPSLatitude", "-GPSLongitude",
                     "-ColorSpace", "-ICC_Profile:ProfileDescription",
                     "--", filePath
                 };
 
-                var result = await ExifToolRunner.RunAsync(_exifToolPath, args, TimeSpan.FromSeconds(15), ct);
+                var result = await _session!.RunCommandAsync(args, TimeSpan.FromSeconds(15), ct);
                 if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.StandardOutput))
                     return null;
 
@@ -102,12 +109,13 @@ namespace WpfApp1.Services
             {
                 File.Copy(filePath, backupPath, true);
 
+                _session?.EnsureRunning();
                 var args = new List<string> { "-overwrite_original", "-sep", ", " };
                 args.AddRange(patch.ToExifToolArgs());
                 args.Add("--");
                 args.Add(filePath);
 
-                var result = await ExifToolRunner.RunAsync(_exifToolPath, args, TimeSpan.FromSeconds(30), ct);
+                var result = await _session!.RunCommandAsync(args, TimeSpan.FromSeconds(30), ct);
                 if (result.ExitCode != 0)
                 {
                     try { File.Copy(backupPath, filePath, true); } catch { }
@@ -121,25 +129,47 @@ namespace WpfApp1.Services
 
                 _cacheService.Invalidate(filePath);
 
-                var verified = await ReadMetadataAsync(filePath, ct);
+                var verified_meta = await ReadMetadataAsync(filePath, ct);
                 var mismatches = new List<string>();
-                if (verified != null)
+                if (verified_meta != null)
                 {
-                    if (patch.Title != null && verified.Title != patch.Title)
-                        mismatches.Add($"Title: expected '{patch.Title}', got '{verified.Title}'");
-                    if (patch.Description != null && verified.Description != patch.Description)
+                    if (patch.Title != null && verified_meta.Title != patch.Title)
+                        mismatches.Add($"Title: expected '{patch.Title}', got '{verified_meta.Title}'");
+                    if (patch.Description != null && verified_meta.Description != patch.Description)
                         mismatches.Add("Description mismatch");
-                    if (patch.Creator != null && verified.Creator != patch.Creator)
-                        mismatches.Add($"Creator: expected '{patch.Creator}', got '{verified.Creator}'");
-                    if (patch.Copyright != null && verified.Copyright != patch.Copyright)
-                        mismatches.Add($"Copyright: expected '{patch.Copyright}', got '{verified.Copyright}'");
+                    if (patch.Creator != null && verified_meta.Creator != patch.Creator)
+                        mismatches.Add($"Creator: expected '{patch.Creator}', got '{verified_meta.Creator}'");
+                    if (patch.Copyright != null && verified_meta.Copyright != patch.Copyright)
+                        mismatches.Add($"Copyright: expected '{patch.Copyright}', got '{verified_meta.Copyright}'");
+                    if (patch.Keywords != null)
+                    {
+                        var expected = string.Join(", ", patch.Keywords.OrderBy(k => k));
+                        var actual = verified_meta.Keywords.Count > 0 ? string.Join(", ", verified_meta.Keywords.OrderBy(k => k)) : "";
+                        if (expected != actual)
+                            mismatches.Add($"Keywords: expected '{expected}', got '{actual}'");
+                    }
+                    if (patch.DateTaken != null && verified_meta.DateTaken != null)
+                    {
+                        if (DateTime.TryParse(patch.DateTaken, out var expectedDate))
+                        {
+                            var diff = Math.Abs((verified_meta.DateTaken.Value - expectedDate).TotalSeconds);
+                            if (diff > 2)
+                                mismatches.Add($"DateTaken: expected '{patch.DateTaken}', got '{verified_meta.DateTaken}'");
+                        }
+                    }
+                }
+
+                bool verificationPassed = verified_meta != null && mismatches.Count == 0;
+                if (!verificationPassed)
+                {
+                    try { File.Copy(backupPath, filePath, true); } catch { }
                 }
 
                 return new MetadataWriteResult
                 {
-                    Success = true,
-                    VerifiedMetadata = verified,
-                    VerificationSucceeded = verified != null && mismatches.Count == 0,
+                    Success = verificationPassed,
+                    VerifiedMetadata = verified_meta,
+                    VerificationSucceeded = verificationPassed,
                     MismatchedFields = mismatches
                 };
             }
@@ -159,6 +189,7 @@ namespace WpfApp1.Services
         {
             if (_disposed) return;
             _disposed = true;
+            _session?.Dispose();
             _cacheService.Dispose();
         }
     }

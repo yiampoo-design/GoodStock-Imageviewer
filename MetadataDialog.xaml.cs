@@ -113,11 +113,22 @@ namespace WpfApp1
                 var result = await _metadataService.WriteMetadataAsync(_filePath, patch);
                 if (!result.Success)
                 {
-                    MessageBox.Show($"Error saving metadata:\n{result.ErrorMessage}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    var msg = result.MismatchedFields.Count > 0
+                        ? $"Verification failed for: {string.Join(", ", result.MismatchedFields)}"
+                        : result.ErrorMessage ?? "Unknown error";
+                    MessageBox.Show($"Save failed:\n{msg}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                MessageBox.Show("Metadata saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                if (result.MismatchedFields.Count > 0)
+                {
+                    MessageBox.Show($"Saved with warnings:\n{string.Join("\n", result.MismatchedFields)}",
+                        "Partial Success", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+                else
+                {
+                    MessageBox.Show("Metadata saved and verified successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
                 DialogResult = true;
                 Close();
             }

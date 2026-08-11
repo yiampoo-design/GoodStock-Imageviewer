@@ -652,8 +652,8 @@
 
                     <Border Width="1" Height="18" Background="{StaticResource BorderBrush}" Margin="6,0"/>
 
-                    <!-- Rotate -->
-                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Rotate (Ctrl+R)" Click="ToolbarRotate_Click">
+                    <!-- Rotate — disabled until lossless/safe implementation exists -->
+                    <Button Style="{StaticResource ToolbarBtn}" ToolTip="Rotate — Coming soon" IsEnabled="False">
                         <Viewbox Width="18" Height="18">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M21 2v6h-6 M21 13a9 9 0 11-3-7.7L21 8"
@@ -948,7 +948,7 @@
                                     <Button Style="{StaticResource ThumbBtn}" Margin="0,0,0,12"
                                             Click="Thumb_Click" MouseDoubleClick="Thumb_DoubleClick" Tag="{Binding}">
                                         <Button.ContextMenu>
-                                            <ContextMenu>
+                                            <ContextMenu Opened="ThumbContextMenu_Opened">
                                                 <MenuItem Header="Open" Click="CtxOpen_Click" Tag="{Binding}">
                                                     <MenuItem.Icon>
                                                         <TextBlock Text="&#xE8E7;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
@@ -965,7 +965,7 @@
                                                         <TextBlock Text="&#xE8C6;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                                                     </MenuItem.Icon>
                                                 </MenuItem>
-                                                <MenuItem Header="Paste" Click="CtxPaste_Click" IsEnabled="False">
+                                                <MenuItem Header="Paste" Click="CtxPaste_Click">
                                                     <MenuItem.Icon>
                                                         <TextBlock Text="&#xE77F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
                                                     </MenuItem.Icon>
@@ -1151,6 +1151,9 @@
                                                  Click="PreviewTab_Click" GroupName="PreviewTab"
                                                  Style="{StaticResource SegmentedTabBtn}"/>
                                     <RadioButton x:Name="TabPreflight" Content="Preflight"
+                                                 Click="PreviewTab_Click" GroupName="PreviewTab"
+                                                 Style="{StaticResource SegmentedTabBtn}"/>
+                                    <RadioButton x:Name="TabHistogram" Content="Histogram"
                                                  Click="PreviewTab_Click" GroupName="PreviewTab"
                                                  Style="{StaticResource SegmentedTabBtn}"/>
                                 </StackPanel>

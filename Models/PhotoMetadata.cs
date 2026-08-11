@@ -23,6 +23,10 @@ namespace WpfApp1.Models
         public string? Make { get; set; }
         public string? Model { get; set; }
         public string? Lens { get; set; }
+        public string? FocalLength { get; set; }
+        public string? FNumber { get; set; }
+        public string? ExposureTime { get; set; }
+        public string? Iso { get; set; }
         public string? IccProfile { get; set; }
 
         public double? GpsLatitude { get; set; }
@@ -62,6 +66,10 @@ namespace WpfApp1.Models
             meta.Make = ResolveTag(element, "IFD0:Make", "ExifIFD:Make");
             meta.Model = ResolveTag(element, "IFD0:Model", "ExifIFD:Model");
             meta.Lens = ResolveTag(element, "ExifIFD:LensModel");
+            meta.FocalLength = ResolveTag(element, "ExifIFD:FocalLength");
+            meta.FNumber = ResolveTag(element, "ExifIFD:FNumber");
+            meta.ExposureTime = ResolveTag(element, "ExifIFD:ExposureTime");
+            meta.Iso = ResolveTag(element, "ExifIFD:ISO");
             meta.IccProfile = ResolveTag(element, "ICC_Profile:ProfileDescription", "ICC_Profile");
 
             var subject = ResolveTag(element, "XMP-dc:Subject", "IPTC:Keywords");
@@ -77,8 +85,23 @@ namespace WpfApp1.Models
             var digStr = ResolveTag(element, "ExifIFD:DateTimeDigitized");
             if (DateTime.TryParse(digStr, out var digDt)) meta.DateDigitized = digDt;
 
-            if (TryGetDouble(element, "GPSLatitude#", out var lat)) meta.GpsLatitude = lat;
-            if (TryGetDouble(element, "GPSLongitude#", out var lon)) meta.GpsLongitude = lon;
+            var latStr = ResolveTag(element, "GPS:GPSLatitude", "GPSLatitude");
+            var latRef = ResolveTag(element, "GPS:GPSLatitudeRef", "GPSLatitudeRef");
+            if (latStr != null)
+            {
+                var latVal = ParseDmsToDecimal(latStr);
+                if (latVal != null)
+                    meta.GpsLatitude = string.Equals(latRef, "S", StringComparison.OrdinalIgnoreCase) ? -latVal.Value : latVal.Value;
+            }
+
+            var lonStr = ResolveTag(element, "GPS:GPSLongitude", "GPSLongitude");
+            var lonRef = ResolveTag(element, "GPS:GPSLongitudeRef", "GPSLongitudeRef");
+            if (lonStr != null)
+            {
+                var lonVal = ParseDmsToDecimal(lonStr);
+                if (lonVal != null)
+                    meta.GpsLongitude = string.Equals(lonRef, "W", StringComparison.OrdinalIgnoreCase) ? -lonVal.Value : lonVal.Value;
+            }
 
             if (int.TryParse(ResolveTag(element, "IFD0:ImageWidth", "ExifIFD:ImageWidth"), out var w))
                 meta.Width = w;
@@ -128,6 +151,27 @@ namespace WpfApp1.Models
                 if (val.ValueKind == JsonValueKind.String && double.TryParse(val.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value)) return true;
             }
             return false;
+        }
+
+        private static double? ParseDmsToDecimal(string dms)
+        {
+            if (string.IsNullOrWhiteSpace(dms)) return null;
+
+            if (double.TryParse(dms, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var direct))
+                return direct;
+
+            var match = System.Text.RegularExpressions.Regex.Match(dms,
+                @"(\d+(?:\.\d+)?)\s*deg\s+(\d+(?:\.\d+)?)['\u2032]\s*(\d+(?:\.\d+)?)[\u2033""\u2033]?\s*([NSEW]?)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            if (!match.Success) return null;
+
+            var deg = double.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            var min = double.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
+            var sec = double.Parse(match.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture);
+
+            var decimalDeg = deg + min / 60.0 + sec / 3600.0;
+            return decimalDeg;
         }
     }
 }

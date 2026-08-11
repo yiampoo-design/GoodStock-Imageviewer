@@ -14,7 +14,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using Microsoft.Win32;
-using Microsoft.VisualBasic.FileIO;
 using WpfApp1.Models;
 
 using WpfApp1.Services;
@@ -25,6 +24,7 @@ namespace WpfApp1
     public partial class MainWindow : Window
     {
         private readonly MainViewModel _viewModel;
+        private readonly Services.IFileOperationService _fileOps = new Services.FileOperationService();
         private readonly ObservableCollection<ThumbItem> _thumbs = new();
         private readonly List<string> _history = new();
         private int _historyIndex = -1;
@@ -87,10 +87,38 @@ namespace WpfApp1
 
             BuildFolderTree();
             LoadDefaultFolder();
+            _ = EnsureExifToolAsync();
+        }
 
-            ExifToolBadge.Visibility = _viewModel.IsMetadataAvailable ? Visibility.Collapsed : Visibility.Visible;
-            if (!_viewModel.IsMetadataAvailable)
-                ExifToolStatusText.Text = "ExifTool not installed";
+        private async Task EnsureExifToolAsync()
+        {
+            if (_viewModel.IsMetadataAvailable)
+            {
+                ExifToolBadge.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            ExifToolBadge.Visibility = Visibility.Visible;
+            ExifToolStatusText.Text = "Installing ExifTool...";
+
+            var writableTools = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "WpfApp1", "tools");
+
+            try
+            {
+                Directory.CreateDirectory(writableTools);
+                var archivePath = Path.Combine(writableTools, "exiftool.zip");
+                await ExifToolService.DownloadArchiveAsync(archivePath, null, CancellationToken.None);
+                var binaryPath = await ExifToolService.InstallArchiveAtomicallyAsync(archivePath, writableTools, CancellationToken.None);
+
+                _viewModel.RefreshMetadataAvailability();
+                ExifToolBadge.Visibility = Visibility.Collapsed;
+            }
+            catch
+            {
+                ExifToolStatusText.Text = "ExifTool unavailable";
+            }
         }
 
         #region Drag & Drop
@@ -803,6 +831,18 @@ namespace WpfApp1
                 if (!string.IsNullOrEmpty(metadata.Lens))
                 { ExifLens.Text = metadata.Lens; hasExifData = true; }
 
+                if (!string.IsNullOrEmpty(metadata.FocalLength))
+                { ExifFocalLength.Text = metadata.FocalLength; hasExifData = true; }
+
+                if (!string.IsNullOrEmpty(metadata.FNumber))
+                { ExifFStop.Text = metadata.FNumber; hasExifData = true; }
+
+                if (!string.IsNullOrEmpty(metadata.ExposureTime))
+                { ExifShutterSpeed.Text = metadata.ExposureTime; hasExifData = true; }
+
+                if (!string.IsNullOrEmpty(metadata.Iso))
+                { ExifISO.Text = metadata.Iso; hasExifData = true; }
+
                 if (metadata.DateTaken != null)
                 { ExifDateTaken.Text = metadata.DateTaken.Value.ToString("yyyy-MM-dd HH:mm:ss"); hasExifData = true; }
             }
@@ -817,8 +857,14 @@ namespace WpfApp1
             }
         }
 
+        private CancellationTokenSource? _histogramCts;
+
         private async void LoadHistogram(string path)
         {
+            _histogramCts?.Cancel();
+            _histogramCts = new CancellationTokenSource();
+            var ct = _histogramCts.Token;
+
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
             {
                 SetHistogramBars(new double[6], new double[6], new double[6]);
@@ -828,18 +874,20 @@ namespace WpfApp1
             try
             {
                 var analysisBitmap = await ImageDecodeService.LoadAnalysisBitmapAsync(path, 256);
-                if (analysisBitmap == null)
+                if (analysisBitmap == null || ct.IsCancellationRequested)
                 {
                     SetHistogramBars(new double[6], new double[6], new double[6]);
                     return;
                 }
 
                 var data = await HistogramService.ComputeAsync(analysisBitmap);
+                if (ct.IsCancellationRequested) return;
                 var red = HistogramService.DownsampleForDisplay(data.Red, 6, 90);
                 var green = HistogramService.DownsampleForDisplay(data.Green, 6, 90);
                 var blue = HistogramService.DownsampleForDisplay(data.Blue, 6, 90);
                 SetHistogramBars(red, green, blue);
             }
+            catch (OperationCanceledException) { }
             catch
             {
                 SetHistogramBars(new double[6], new double[6], new double[6]);
@@ -921,6 +969,9 @@ namespace WpfApp1
                         PreflightPanel.Visibility = Visibility.Visible;
                         RunPreflightCheck();
                         break;
+                    case "TabHistogram":
+                        HistogramPanel.Visibility = Visibility.Visible;
+                        break;
                     default:
                         ExifPanel.Visibility = Visibility.Visible;
                         break;
@@ -946,12 +997,10 @@ namespace WpfApp1
 
             try
             {
-                if (_viewModel.CurrentMetadata == null || _viewModel.CurrentMetadata.FilePath != _currentPreviewPath)
-                {
-                    await _viewModel.LoadMetadataForFileAsync(_currentPreviewPath);
-                }
+                await _viewModel.LoadMetadataForFileAsync(_currentPreviewPath);
+                var meta = _viewModel.CurrentMetadata;
 
-                if (_viewModel.CurrentMetadata == null)
+                if (meta == null)
                 {
                     PreflightDimensions.Text = "No metadata available";
                     PreflightFormat.Text = "—";
@@ -961,8 +1010,6 @@ namespace WpfApp1
                     PreflightKeywords.Text = "—";
                     return;
                 }
-
-                var meta = _viewModel.CurrentMetadata;
                 var ext = System.IO.Path.GetExtension(meta.FilePath).ToUpper().TrimStart('.');
 
                 PreflightDimensions.Text = meta.Width > 0
@@ -1147,7 +1194,7 @@ namespace WpfApp1
 
         #region File Operations
 
-        private void DeleteSelectedItems()
+        private async void DeleteSelectedItems()
         {
             if (_selectedItems.Count == 0) return;
             var names = _selectedItems.Take(3).Select(i => i.FileName).ToList();
@@ -1157,28 +1204,18 @@ namespace WpfApp1
 
             if (MessageBox.Show(msg, "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
             {
-                var failed = new List<string>();
+                var paths = _selectedItems.Select(i => i.FilePath).ToList();
+                var result = await _fileOps.DeleteToRecycleBinAsync(paths);
+
                 foreach (var item in _selectedItems.ToList())
-                {
-                    try
-                    {
-                        if (item.IsFolder)
-                            FileSystem.DeleteDirectory(item.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-                        else
-                            FileSystem.DeleteFile(item.FilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-                        _thumbs.Remove(item);
-                    }
-                    catch (Exception ex)
-                    {
-                        failed.Add($"{item.FileName}: {ex.Message}");
-                    }
-                }
+                    _thumbs.Remove(item);
+
                 ClearSelection();
                 StatusFiles.Text = $"{_thumbs.Count} items";
                 StatusSelection.Text = "0 selected";
-                if (failed.Count > 0)
+                if (result.Errors.Count > 0)
                 {
-                    MessageBox.Show($"Failed to delete {failed.Count} item(s):\n{string.Join("\n", failed.Take(5))}",
+                    MessageBox.Show($"Failed to delete {result.Errors.Count} item(s):\n{string.Join("\n", result.Errors.Take(5))}",
                         "Delete Errors", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
@@ -1349,6 +1386,16 @@ namespace WpfApp1
                 _clipboardItem = item;
                 _clipboardIsCut = true;
                 StatusSelection.Text = $"Cut: {item.FileName}";
+            }
+        }
+
+        private void ThumbContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            if (sender is ContextMenu menu && menu.PlacementTarget is FrameworkElement fe)
+            {
+                var pasteItem = menu.Items[3] as MenuItem;
+                if (pasteItem != null)
+                    pasteItem.IsEnabled = _clipboardItem != null && !string.IsNullOrEmpty(_currentFolder);
             }
         }
 
@@ -1925,15 +1972,18 @@ namespace WpfApp1
             {
                 try
                 {
-                    var ext = Path.GetExtension(dlg.FileName).ToLower();
+                    var destExt = Path.GetExtension(dlg.FileName).ToLower();
+                    var srcExt = Path.GetExtension(sourcePath).ToLower();
+
                     BitmapDecoder decoder;
                     using (var fs = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
-                        decoder = ext switch
+                        decoder = srcExt switch
                         {
                             ".jpg" or ".jpeg" => new JpegBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
                             ".bmp" => new BmpBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
                             ".tiff" or ".tif" => new TiffBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
+                            ".gif" => new GifBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
                             _ => new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None)
                         };
                     }
@@ -1945,7 +1995,7 @@ namespace WpfApp1
                     }
 
                     var frame = decoder.Frames[0];
-                    BitmapEncoder encoder = ext switch
+                    BitmapEncoder encoder = destExt switch
                     {
                         ".jpg" or ".jpeg" => new JpegBitmapEncoder { QualityLevel = 95 },
                         ".bmp" => new BmpBitmapEncoder(),
@@ -1986,53 +2036,7 @@ namespace WpfApp1
             _viewModel.ToggleThemeCommand.Execute(null);
         }
 
-        private void ToolbarRotate_Click(object sender, RoutedEventArgs e)
-        {
-            if (_viewerIndex < 0 || _viewerIndex >= _thumbs.Count || _thumbs[_viewerIndex].IsFolder) return;
-            var item = _thumbs[_viewerIndex];
-            if (!File.Exists(item.FilePath)) return;
-
-            try
-            {
-                var rotatedPath = Path.Combine(
-                    Path.GetDirectoryName(item.FilePath) ?? "",
-                    Path.GetFileNameWithoutExtension(item.FilePath) + "_rotated" + Path.GetExtension(item.FilePath));
-
-                using var fs = new FileStream(item.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                var decoder = BitmapDecoder.Create(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None);
-                if (decoder.Frames.Count == 0) return;
-
-                var frame = decoder.Frames[0];
-                var rotated = new TransformedBitmap(frame, new RotateTransform(90));
-                rotated.Freeze();
-
-                using var outStream = File.Create(rotatedPath);
-                var ext = Path.GetExtension(rotatedPath).ToLowerInvariant();
-                BitmapEncoder encoder = ext switch
-                {
-                    ".jpg" or ".jpeg" => new JpegBitmapEncoder { QualityLevel = 95 },
-                    ".bmp" => new BmpBitmapEncoder(),
-                    ".tiff" or ".tif" => new TiffBitmapEncoder(),
-                    _ => new PngBitmapEncoder()
-                };
-                encoder.Frames.Add(BitmapFrame.Create(rotated));
-                encoder.Save(outStream);
-                outStream.Close();
-
-                File.Delete(item.FilePath);
-                File.Move(rotatedPath, item.FilePath);
-
-                ShowViewer(item);
-                LoadExifData(item.FilePath);
-                LoadHistogram(item.FilePath);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Rotate failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void ToolbarCopy_Click(object sender, RoutedEventArgs e)
+        private async void ToolbarCopy_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedItems.Count == 0 && string.IsNullOrEmpty(_currentPreviewPath)) return;
 
@@ -2047,21 +2051,13 @@ namespace WpfApp1
             else if (!string.IsNullOrEmpty(_currentPreviewPath) && File.Exists(_currentPreviewPath))
                 filesToCopy.Add(_currentPreviewPath);
 
-            int copied = 0;
-            foreach (var src in filesToCopy)
-            {
-                try
-                {
-                    var destPath = Path.Combine(dest, Path.GetFileName(src));
-                    File.Copy(src, destPath, false);
-                    copied++;
-                }
-                catch { }
-            }
-            StatusSelection.Text = $"Copied {copied} file(s)";
+            var result = await _fileOps.CopyFilesAsync(filesToCopy, dest);
+            StatusSelection.Text = result.Errors.Count == 0
+                ? $"Copied {result.FilesProcessed} file(s)"
+                : $"Copied {result.FilesProcessed} file(s), {result.Errors.Count} error(s)";
         }
 
-        private void ToolbarMove_Click(object sender, RoutedEventArgs e)
+        private async void ToolbarMove_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedItems.Count == 0 && string.IsNullOrEmpty(_currentPreviewPath)) return;
 
@@ -2076,25 +2072,17 @@ namespace WpfApp1
             else if (!string.IsNullOrEmpty(_currentPreviewPath) && File.Exists(_currentPreviewPath))
                 filesToMove.Add(_currentPreviewPath);
 
-            int moved = 0;
-            foreach (var src in filesToMove)
-            {
-                try
-                {
-                    var destPath = Path.Combine(dest, Path.GetFileName(src));
-                    File.Move(src, destPath);
-                    moved++;
-                }
-                catch { }
-            }
+            var result = await _fileOps.MoveFilesAsync(filesToMove, dest);
 
-            if (moved > 0)
+            if (result.FilesProcessed > 0)
             {
                 ClearSelection();
                 if (!string.IsNullOrEmpty(_currentFolder) && Directory.Exists(_currentFolder))
                     LoadFolder(_currentFolder);
             }
-            StatusSelection.Text = $"Moved {moved} file(s)";
+            StatusSelection.Text = result.Errors.Count == 0
+                ? $"Moved {result.FilesProcessed} file(s)"
+                : $"Moved {result.FilesProcessed} file(s), {result.Errors.Count} error(s)";
         }
 
         private void ToolbarDelete_Click(object sender, RoutedEventArgs e)
@@ -2344,11 +2332,6 @@ namespace WpfApp1
                 ManageMetadata_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
-            else if (e.Key == Key.R && Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                ToolbarRotate_Click(this, new RoutedEventArgs());
-                e.Handled = true;
-            }
             else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
             {
                 ToolbarCopy_Click(this, new RoutedEventArgs());
@@ -2362,10 +2345,6 @@ namespace WpfApp1
             else if (e.Key == Key.O && Keyboard.Modifiers == ModifierKeys.Control)
             {
                 MenuOpen_Click(this, new RoutedEventArgs());
-                e.Handled = true;
-            }
-            else if (e.Key == Key.P && Keyboard.Modifiers == ModifierKeys.Control)
-            {
                 e.Handled = true;
             }
             else if (e.Key == Key.F5)

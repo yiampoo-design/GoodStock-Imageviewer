@@ -77,6 +77,11 @@ namespace WpfApp1.ViewModels
         public string ThemeButtonText => _themeManager.CurrentTheme == ThemeMode.Dark ? "Light Mode" : "Dark Mode";
         public bool IsMetadataAvailable => _metadataService.ExifToolPath != null;
 
+        public void RefreshMetadataAvailability()
+        {
+            OnPropertyChanged(nameof(IsMetadataAvailable));
+        }
+
         public void InvalidateCache(string filePath)
         {
             if (_metadataService is MetadataService ms)
