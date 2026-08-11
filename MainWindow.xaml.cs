@@ -2045,18 +2045,6 @@ namespace WpfApp1
                 LoadFolder(_currentFolder);
         }
 
-        private void MenuSettings_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("Settings dialog — implement with theme, language, default paths, etc.", "Settings",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        private void MenuBatchConvert_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("Batch Convert dialog — implement with format selection, quality, output folder.", "Batch Convert",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
         private void ToggleTheme_Click(object sender, RoutedEventArgs e)
         {
             _viewModel.ToggleThemeCommand.Execute(null);
