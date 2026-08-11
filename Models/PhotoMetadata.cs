@@ -77,7 +77,7 @@ namespace WpfApp1.Models
                 meta.Keywords = new List<string>(subject.Split(new[] { ", ", "," }, StringSplitOptions.RemoveEmptyEntries));
 
             var dateStr = ResolveTag(element, "ExifIFD:DateTimeOriginal", "IFD0:DateTime", "IFD0:ModifyDate");
-            if (DateTime.TryParse(dateStr, out var dt)) meta.DateTaken = dt;
+            if (TryParseExifDate(dateStr, out var dt)) meta.DateTaken = dt;
 
             var modStr = ResolveTag(element, "File:FileModifyDate");
             if (DateTime.TryParse(modStr, out var modDt)) meta.DateModified = modDt;
@@ -85,7 +85,7 @@ namespace WpfApp1.Models
             var digStr = ResolveTag(element, "ExifIFD:DateTimeDigitized");
             if (DateTime.TryParse(digStr, out var digDt)) meta.DateDigitized = digDt;
 
-            var latStr = ResolveTag(element, "GPS:GPSLatitude", "GPSLatitude");
+            var latStr = ResolveTag(element, "Composite:GPSLatitude", "GPS:GPSLatitude", "GPSLatitude");
             if (latStr != null && double.TryParse(latStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var latSigned))
             {
                 meta.GpsLatitude = latSigned;
@@ -100,7 +100,7 @@ namespace WpfApp1.Models
                 }
             }
 
-            var lonStr = ResolveTag(element, "GPS:GPSLongitude", "GPSLongitude");
+            var lonStr = ResolveTag(element, "Composite:GPSLongitude", "GPS:GPSLongitude", "GPSLongitude");
             if (lonStr != null && double.TryParse(lonStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var lonSigned))
             {
                 meta.GpsLongitude = lonSigned;
@@ -115,9 +115,9 @@ namespace WpfApp1.Models
                 }
             }
 
-            if (int.TryParse(ResolveTag(element, "IFD0:ImageWidth", "ExifIFD:ImageWidth"), out var w))
+            if (int.TryParse(ResolveTag(element, "File:ImageWidth", "IFD0:ImageWidth", "ExifIFD:ImageWidth"), out var w))
                 meta.Width = w;
-            if (int.TryParse(ResolveTag(element, "IFD0:ImageHeight", "ExifIFD:ImageHeight"), out var h))
+            if (int.TryParse(ResolveTag(element, "File:ImageHeight", "IFD0:ImageHeight", "ExifIFD:ImageHeight"), out var h))
                 meta.Height = h;
 
             meta.Orientation = ResolveTag(element, "IFD0:Orientation", "ExifIFD:Orientation");
@@ -163,6 +163,28 @@ namespace WpfApp1.Models
                 if (val.ValueKind == JsonValueKind.String && double.TryParse(val.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value)) return true;
             }
             return false;
+        }
+
+        private static bool TryParseExifDate(string? s, out DateTime value)
+        {
+            value = default;
+            if (string.IsNullOrWhiteSpace(s)) return false;
+            var trimmed = s.Trim();
+            var formats = new[]
+            {
+                "yyyy:MM:dd HH:mm:ss",
+                "yyyy:MM:dd HH:mm",
+                "yyyy:MM:dd",
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd HH:mm",
+                "yyyy-MM-dd",
+            };
+            foreach (var f in formats)
+            {
+                if (DateTime.TryParseExact(trimmed, f, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out value)) return true;
+            }
+            return DateTime.TryParse(trimmed, out value);
         }
 
         private static double? ParseDmsToDecimal(string dms)

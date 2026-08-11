@@ -62,6 +62,7 @@ namespace WpfApp1.Services
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
+                    StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
                     StandardOutputEncoding = Encoding.UTF8,
                     StandardErrorEncoding = Encoding.UTF8,
                     UseShellExecute = false,
@@ -144,8 +145,13 @@ namespace WpfApp1.Services
             var cmdBuilder = new StringBuilder();
             cmdBuilder.AppendLine("-charset");
             cmdBuilder.AppendLine("filename=UTF8");
+            // Note: "-execute" must not be preceded by "--" (end-of-options), which
+            // disables execute-marker recognition and causes the command to hang.
             foreach (var arg in arguments)
+            {
+                if (arg == "--") continue;
                 cmdBuilder.AppendLine(arg);
+            }
             cmdBuilder.AppendLine($"-execute{requestId}");
 
             var cmdText = cmdBuilder.ToString();

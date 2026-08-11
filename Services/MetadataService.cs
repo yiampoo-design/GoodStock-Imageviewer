@@ -67,6 +67,7 @@ namespace WpfApp1.Services
                     "-FileSize", "-FileType", "-Rating",
                     "-GPSLatitude#", "-GPSLongitude#",
                     "-GPSLatitudeRef", "-GPSLongitudeRef",
+                    "-Composite:GPSLatitude#", "-Composite:GPSLongitude#",
                     "-ColorSpace", "-ICC_Profile:ProfileDescription",
                     "--", filePath
                 };
@@ -147,7 +148,7 @@ namespace WpfApp1.Services
                         {
                             mismatches.Add("DateTaken: expected value but got null");
                         }
-                        else if (DateTime.TryParse(patch.DateTaken, out var expectedDate))
+                        else if (DateTime.TryParse(patch.DateTaken, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var expectedDate))
                         {
                             var diff = Math.Abs((verified_meta.DateTaken.Value - expectedDate).TotalSeconds);
                             if (diff > 2)
