@@ -1,4 +1,3 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
@@ -27,6 +26,8 @@ namespace WpfApp1.Services
                 int totalPixels = w * h;
                 int highlightCount = 0;
                 int shadowCount = 0;
+                int rHi = 0, gHi = 0, bHi = 0;
+                int rSh = 0, gSh = 0, bSh = 0;
 
                 for (int i = 0; i < pixels.Length; i += 4)
                 {
@@ -36,6 +37,20 @@ namespace WpfApp1.Services
                     byte g = pixels[i + 1];
                     byte r = pixels[i + 2];
 
+                    bool rHiClip = r >= highlightThreshold;
+                    bool gHiClip = g >= highlightThreshold;
+                    bool bHiClip = b >= highlightThreshold;
+                    bool rShClip = r <= shadowThreshold;
+                    bool gShClip = g <= shadowThreshold;
+                    bool bShClip = b <= shadowThreshold;
+
+                    if (rHiClip) rHi++;
+                    if (gHiClip) gHi++;
+                    if (bHiClip) bHi++;
+                    if (rShClip) rSh++;
+                    if (gShClip) gSh++;
+                    if (bShClip) bSh++;
+
                     if (mode == ClippingMode.Luminance)
                     {
                         int lum = (int)(0.299 * r + 0.587 * g + 0.114 * b);
@@ -44,9 +59,9 @@ namespace WpfApp1.Services
                     }
                     else
                     {
-                        if (r >= highlightThreshold && g >= highlightThreshold && b >= highlightThreshold)
+                        if (rHiClip || gHiClip || bHiClip)
                             highlightCount++;
-                        else if (r <= shadowThreshold && g <= shadowThreshold && b <= shadowThreshold)
+                        else if (rShClip || gShClip || bShClip)
                             shadowCount++;
                     }
                 }
@@ -58,6 +73,12 @@ namespace WpfApp1.Services
                     TotalPixels = totalPixels,
                     HighlightPercentage = totalPixels > 0 ? highlightCount * 100.0 / totalPixels : 0,
                     ShadowPercentage = totalPixels > 0 ? shadowCount * 100.0 / totalPixels : 0,
+                    RedHighlightPixels = rHi,
+                    GreenHighlightPixels = gHi,
+                    BlueHighlightPixels = bHi,
+                    RedShadowPixels = rSh,
+                    GreenShadowPixels = gSh,
+                    BlueShadowPixels = bSh,
                 };
             }, ct);
         }
@@ -95,8 +116,8 @@ namespace WpfApp1.Services
                 }
                 else
                 {
-                    isHighlight = r >= highlightThreshold && g >= highlightThreshold && b >= highlightThreshold;
-                    isShadow = r <= shadowThreshold && g <= shadowThreshold && b <= shadowThreshold;
+                    isHighlight = r >= highlightThreshold || g >= highlightThreshold || b >= highlightThreshold;
+                    isShadow = r <= shadowThreshold || g <= shadowThreshold || b <= shadowThreshold;
                 }
 
                 if (isHighlight)

@@ -54,51 +54,53 @@ namespace WpfApp1.Models
                 meta.FileSizeBytes = fi.Length;
             }
 
-            meta.FileType = GetString(element, "FileType") ?? GetExtensionGroup(element);
-            meta.Title = GetString(element, "XMP-dc:Title") ?? GetString(element, "IPTC:ObjectName");
-            meta.Description = GetString(element, "XMP-dc:Description") ?? GetString(element, "IPTC:Caption-Abstract") ?? GetString(element, "ImageDescription");
+            meta.FileType = ResolveTag(element, "FileType", "File:FileType");
+            meta.Title = ResolveTag(element, "XMP-dc:Title", "IPTC:ObjectName");
+            meta.Description = ResolveTag(element, "XMP-dc:Description", "IPTC:Caption-Abstract", "ImageDescription", "IFD0:ImageDescription");
+            meta.Creator = ResolveTag(element, "XMP-dc:Creator", "Artist", "IFD0:Artist", "IPTC:By-line");
+            meta.Copyright = ResolveTag(element, "Copyright", "IFD0:Copyright", "XMP-dc:Rights", "IPTC:CopyrightNotice");
+            meta.Make = ResolveTag(element, "IFD0:Make", "ExifIFD:Make");
+            meta.Model = ResolveTag(element, "IFD0:Model", "ExifIFD:Model");
+            meta.Lens = ResolveTag(element, "ExifIFD:LensModel");
+            meta.IccProfile = ResolveTag(element, "ICC_Profile:ProfileDescription", "ICC_Profile");
 
-            var subject = GetString(element, "XMP-dc:Subject") ?? GetString(element, "IPTC:Keywords");
+            var subject = ResolveTag(element, "XMP-dc:Subject", "IPTC:Keywords");
             if (!string.IsNullOrEmpty(subject))
                 meta.Keywords = new List<string>(subject.Split(new[] { ", ", "," }, StringSplitOptions.RemoveEmptyEntries));
 
-            meta.Creator = GetString(element, "XMP-dc:Creator") ?? GetString(element, "Artist") ?? GetString(element, "IPTC:By-line");
-            meta.Copyright = GetString(element, "Copyright") ?? GetString(element, "XMP-dc:Rights") ?? GetString(element, "IPTC:CopyrightNotice");
-            meta.Make = GetString(element, "Make") ?? GetString(element, "EXIF:Make");
-            meta.Model = GetString(element, "Model") ?? GetString(element, "EXIF:Model");
-            meta.Lens = GetString(element, "LensModel") ?? GetString(element, "EXIF:LensModel");
-            meta.IccProfile = GetString(element, "ICC_Profile:ProfileDescription") ?? GetString(element, "ICC_Profile");
-
-            var dateStr = GetString(element, "DateTimeOriginal") ?? GetString(element, "EXIF:DateTimeOriginal") ?? GetString(element, "DateTime");
+            var dateStr = ResolveTag(element, "ExifIFD:DateTimeOriginal", "IFD0:DateTime", "IFD0:ModifyDate");
             if (DateTime.TryParse(dateStr, out var dt)) meta.DateTaken = dt;
 
-            var modStr = GetString(element, "File:FileModifyDate") ?? GetString(element, "ModifyDate");
+            var modStr = ResolveTag(element, "File:FileModifyDate");
             if (DateTime.TryParse(modStr, out var modDt)) meta.DateModified = modDt;
 
-            if (TryGetDouble(element, "GPSLatitude", out var lat)) meta.GpsLatitude = lat;
-            if (TryGetDouble(element, "GPSLongitude", out var lon)) meta.GpsLongitude = lon;
+            var digStr = ResolveTag(element, "ExifIFD:DateTimeDigitized");
+            if (DateTime.TryParse(digStr, out var digDt)) meta.DateDigitized = digDt;
 
-            if (int.TryParse(GetString(element, "ImageWidth") ?? GetString(element, "EXIF:ImageWidth"), out var w))
+            if (TryGetDouble(element, "GPSLatitude#", out var lat)) meta.GpsLatitude = lat;
+            if (TryGetDouble(element, "GPSLongitude#", out var lon)) meta.GpsLongitude = lon;
+
+            if (int.TryParse(ResolveTag(element, "IFD0:ImageWidth", "ExifIFD:ImageWidth"), out var w))
                 meta.Width = w;
-            if (int.TryParse(GetString(element, "ImageHeight") ?? GetString(element, "EXIF:ImageHeight"), out var h))
+            if (int.TryParse(ResolveTag(element, "IFD0:ImageHeight", "ExifIFD:ImageHeight"), out var h))
                 meta.Height = h;
 
-            meta.Orientation = GetString(element, "Orientation") ?? GetString(element, "EXIF:Orientation");
-            meta.Rating = GetString(element, "Rating") ?? GetString(element, "XMP:Rating");
-            meta.ColorSpace = GetString(element, "ColorSpace") ?? GetString(element, "EXIF:ColorSpace");
+            meta.Orientation = ResolveTag(element, "IFD0:Orientation", "ExifIFD:Orientation");
+            meta.Rating = ResolveTag(element, "XMP:Rating", "XMP-xmp:Rating");
+            meta.ColorSpace = ResolveTag(element, "ExifIFD:ColorSpace");
 
             return meta;
         }
 
-        private static string? GetString(JsonElement element, string tag)
+        private static string? ResolveTag(JsonElement element, params string[] tags)
         {
-            if (element.TryGetProperty(tag, out var val))
-                return ExtractString(val);
-
-            foreach (var prefix in new[] { "EXIF:", "XMP:", "IPTC:", "File:" })
+            foreach (var tag in tags)
             {
-                if (element.TryGetProperty(prefix + tag, out var grouped))
-                    return ExtractString(grouped);
+                if (element.TryGetProperty(tag, out var val))
+                {
+                    var s = ExtractString(val);
+                    if (s != null) return s;
+                }
             }
             return null;
         }
@@ -113,6 +115,7 @@ namespace WpfApp1.Models
                     if (item.ValueKind == JsonValueKind.String) parts.Add(item.GetString()!);
                 return parts.Count > 0 ? string.Join(", ", parts) : null;
             }
+            if (val.ValueKind == JsonValueKind.Number) return val.ToString();
             return val.ToString();
         }
 
@@ -122,16 +125,9 @@ namespace WpfApp1.Models
             if (element.TryGetProperty(tag, out var val))
             {
                 if (val.ValueKind == JsonValueKind.Number) { value = val.GetDouble(); return true; }
-                if (val.ValueKind == JsonValueKind.String && double.TryParse(val.GetString(), out value)) return true;
+                if (val.ValueKind == JsonValueKind.String && double.TryParse(val.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out value)) return true;
             }
             return false;
-        }
-
-        private static string? GetExtensionGroup(JsonElement element)
-        {
-            if (element.TryGetProperty("File:FileType", out var ft) && ft.ValueKind == JsonValueKind.String)
-                return ft.GetString();
-            return null;
         }
     }
 }

@@ -1,12 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,7 +14,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shell;
 using Microsoft.Win32;
-using Directory = System.IO.Directory;
 using Microsoft.VisualBasic.FileIO;
 using WpfApp1.Models;
 
@@ -70,7 +66,6 @@ namespace WpfApp1
 
         private string _sortBy = "name";
         private bool _sortAscending = true;
-        private string? _exifToolPath;
         private CancellationTokenSource? _metadataCts;
 
         private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -92,40 +87,10 @@ namespace WpfApp1
 
             BuildFolderTree();
             LoadDefaultFolder();
-            _ = EnsureExifToolAsync();
-        }
 
-        private async Task EnsureExifToolAsync()
-        {
-            var appTools = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools");
-            var writableTools = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "WpfApp1", "tools");
-            var inspection = ExifToolService.Inspect(appTools, writableTools);
-
-            if (inspection.Valid)
-            {
-                _exifToolPath = inspection.BinaryPath;
-                ExifToolBadge.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            ExifToolBadge.Visibility = Visibility.Visible;
-            ExifToolStatusText.Text = "Installing ExifTool...";
-
-            try
-            {
-                Directory.CreateDirectory(writableTools);
-                var archivePath = Path.Combine(writableTools, "exiftool.zip");
-                await ExifToolService.DownloadArchiveAsync(archivePath, null, CancellationToken.None);
-                var binaryPath = await ExifToolService.InstallArchiveAtomicallyAsync(archivePath, writableTools, CancellationToken.None);
-                _exifToolPath = binaryPath;
-                ExifToolBadge.Visibility = Visibility.Collapsed;
-            }
-            catch
-            {
-                ExifToolStatusText.Text = "ExifTool unavailable";
-            }
+            ExifToolBadge.Visibility = _viewModel.IsMetadataAvailable ? Visibility.Collapsed : Visibility.Visible;
+            if (!_viewModel.IsMetadataAvailable)
+                ExifToolStatusText.Text = "ExifTool not installed";
         }
 
         #region Drag & Drop
@@ -580,8 +545,6 @@ namespace WpfApp1
             }
         }
 
-        private void NavigateTo(string tag, bool pushHistory) { }
-
         private void NavigateBack()
         {
             if (_historyIndex > 0)
@@ -786,7 +749,6 @@ namespace WpfApp1
             }
 
             LoadExifData(item.FilePath);
-            LoadMetadataPanel(item.FilePath);
             LoadHistogram(item.FilePath);
         }
 
@@ -810,21 +772,6 @@ namespace WpfApp1
 
 
 
-        private static readonly Dictionary<string, string> ExifTagNames = new()
-        {
-            ["010F"] = "Camera Make", ["0110"] = "Camera Model",
-            ["9003"] = "Date Taken", ["0132"] = "Date Modified",
-            ["829D"] = "Aperture", ["829A"] = "Exposure Time",
-            ["920A"] = "Focal Length", ["8827"] = "ISO Speed",
-            ["A433"] = "Lens Model", ["A434"] = "Lens Make",
-            ["010E"] = "Description", ["013B"] = "Artist",
-            ["8298"] = "Copyright", ["0131"] = "Software",
-            ["0112"] = "Orientation", ["9209"] = "Flash",
-            ["9207"] = "Metering Mode", ["9286"] = "User Comment",
-            ["9C9C"] = "Title", ["9C9E"] = "Author",
-            ["9C9F"] = "Tags", ["9C9D"] = "Comment",
-        };
-
         private async void LoadExifData(string path)
         {
             _metadataCts?.Cancel();
@@ -841,44 +788,23 @@ namespace WpfApp1
             ExifNoData.Visibility = Visibility.Collapsed;
 
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) { ExifNoData.Visibility = Visibility.Visible; return; }
-            if (_exifToolPath == null) { ExifNoData.Text = "ExifTool not installed."; ExifNoData.Visibility = Visibility.Visible; return; }
 
             bool hasExifData = false;
             try
             {
-                var metadata = await ReadMetadataWithExifToolAsync(path);
-                if (ct.IsCancellationRequested) return;
+                await _viewModel.LoadMetadataForFileAsync(path);
+                ct.ThrowIfCancellationRequested();
+                var metadata = _viewModel.CurrentMetadata;
                 if (metadata == null) { ExifNoData.Visibility = Visibility.Visible; return; }
 
-                var make = GetJsonString(metadata, "Make");
-                var model = GetJsonString(metadata, "Model");
-                if (!string.IsNullOrEmpty(model))
-                { ExifCamera.Text = string.IsNullOrEmpty(make) ? model : $"{make} {model}"; hasExifData = true; }
+                if (!string.IsNullOrEmpty(metadata.Model))
+                { ExifCamera.Text = string.IsNullOrEmpty(metadata.Make) ? metadata.Model : $"{metadata.Make} {metadata.Model}"; hasExifData = true; }
 
-                var focalLength = GetJsonString(metadata, "FocalLength");
-                if (!string.IsNullOrEmpty(focalLength))
-                { ExifFocalLength.Text = focalLength; hasExifData = true; }
+                if (!string.IsNullOrEmpty(metadata.Lens))
+                { ExifLens.Text = metadata.Lens; hasExifData = true; }
 
-                var fNumber = GetJsonString(metadata, "FNumber");
-                if (!string.IsNullOrEmpty(fNumber))
-                { ExifFStop.Text = $"f/{fNumber}"; hasExifData = true; }
-
-                var exposureTime = GetJsonString(metadata, "ExposureTime");
-                if (!string.IsNullOrEmpty(exposureTime))
-                { ExifShutterSpeed.Text = exposureTime.Contains("/") ? $"1/{double.Parse(exposureTime.Split('/')[1]):F0}s" : $"{exposureTime}s"; hasExifData = true; }
-
-                var iso = GetJsonString(metadata, "ISO");
-                if (!string.IsNullOrEmpty(iso))
-                { ExifISO.Text = $"ISO {iso}"; hasExifData = true; }
-
-                var lens = GetJsonString(metadata, "LensModel");
-                if (!string.IsNullOrEmpty(lens))
-                { ExifLens.Text = lens; hasExifData = true; }
-
-                var dateTaken = GetJsonString(metadata, "DateTimeOriginal");
-                if (string.IsNullOrEmpty(dateTaken)) dateTaken = GetJsonString(metadata, "DateTime");
-                if (!string.IsNullOrEmpty(dateTaken))
-                { ExifDateTaken.Text = dateTaken; hasExifData = true; }
+                if (metadata.DateTaken != null)
+                { ExifDateTaken.Text = metadata.DateTaken.Value.ToString("yyyy-MM-dd HH:mm:ss"); hasExifData = true; }
             }
             catch { }
 
@@ -893,91 +819,31 @@ namespace WpfApp1
 
         private async void LoadHistogram(string path)
         {
-            var red = new double[] { 60, 80, 45, 70, 55, 35 };
-            var green = new double[] { 50, 70, 55, 65, 45, 30 };
-            var blue = new double[] { 45, 60, 50, 75, 60, 40 };
-
             if (string.IsNullOrEmpty(path) || !File.Exists(path))
             {
-                SetHistogramBars(red, green, blue);
+                SetHistogramBars(new double[6], new double[6], new double[6]);
                 return;
             }
 
             try
             {
-                var (r, g, b) = await Task.Run(() =>
+                var analysisBitmap = await ImageDecodeService.LoadAnalysisBitmapAsync(path, 256);
+                if (analysisBitmap == null)
                 {
-                    using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    var ext = Path.GetExtension(path).ToLowerInvariant();
-                    BitmapDecoder? decoder = ext switch
-                    {
-                        ".jpg" or ".jpeg" => new JpegBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                        ".png" => new PngBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                        ".tiff" or ".tif" => new TiffBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                        ".bmp" => new BmpBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                        ".gif" => new GifBitmapDecoder(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None),
-                        _ => null
-                    };
-                    if (decoder == null || decoder.Frames.Count == 0)
-                        return (red, green, blue);
+                    SetHistogramBars(new double[6], new double[6], new double[6]);
+                    return;
+                }
 
-                    var frame = decoder.Frames[0];
-                    int maxDim = 256;
-                    double scale = Math.Min((double)maxDim / frame.PixelWidth, (double)maxDim / frame.PixelHeight);
-                    if (scale > 1) scale = 1;
-                    var scaled = new TransformedBitmap(frame, new ScaleTransform(scale, scale));
-                    var formatted = new FormatConvertedBitmap(scaled, PixelFormats.Bgra32, null, 0);
-                    var pixels = new byte[formatted.PixelWidth * formatted.PixelHeight * 4];
-                    formatted.CopyPixels(pixels, formatted.PixelWidth * 4, 0);
-
-                    var rHist = new int[256];
-                    var gHist = new int[256];
-                    var bHist = new int[256];
-                    for (int i = 0; i < pixels.Length; i += 4)
-                    {
-                        bHist[pixels[i]]++;
-                        gHist[pixels[i + 1]]++;
-                        rHist[pixels[i + 2]]++;
-                    }
-
-                    int binsPerBar = 256 / 6;
-                    double maxR = 0, maxG = 0, maxB = 0;
-                    var rBins = new double[6];
-                    var gBins = new double[6];
-                    var bBins = new double[6];
-                    for (int b2 = 0; b2 < 6; b2++)
-                    {
-                        for (int i = b2 * binsPerBar; i < (b2 + 1) * binsPerBar; i++)
-                        {
-                            rBins[b2] += rHist[i];
-                            gBins[b2] += gHist[i];
-                            bBins[b2] += bHist[i];
-                        }
-                        if (rBins[b2] > maxR) maxR = rBins[b2];
-                        if (gBins[b2] > maxG) maxG = gBins[b2];
-                        if (bBins[b2] > maxB) maxB = bBins[b2];
-                    }
-
-                    double maxAll = Math.Max(maxR, Math.Max(maxG, maxB));
-                    var rr = new double[6];
-                    var gg = new double[6];
-                    var bb = new double[6];
-                    if (maxAll > 0)
-                    {
-                        for (int i = 0; i < 6; i++)
-                        {
-                            rr[i] = rBins[i] / maxAll * 90;
-                            gg[i] = gBins[i] / maxAll * 90;
-                            bb[i] = bBins[i] / maxAll * 90;
-                        }
-                    }
-                    return (rr, gg, bb);
-                });
-                red = r; green = g; blue = b;
+                var data = await HistogramService.ComputeAsync(analysisBitmap);
+                var red = HistogramService.DownsampleForDisplay(data.Red, 6, 90);
+                var green = HistogramService.DownsampleForDisplay(data.Green, 6, 90);
+                var blue = HistogramService.DownsampleForDisplay(data.Blue, 6, 90);
+                SetHistogramBars(red, green, blue);
             }
-            catch { }
-
-            SetHistogramBars(red, green, blue);
+            catch
+            {
+                SetHistogramBars(new double[6], new double[6], new double[6]);
+            }
         }
 
         private void SetHistogramBars(double[] red, double[] green, double[] blue)
@@ -1013,116 +879,6 @@ namespace WpfApp1
 
         #region Metadata Panel
 
-        private async void LoadMetadataPanel(string path)
-        {
-            var ct = _metadataCts?.Token ?? CancellationToken.None;
-
-            MetaCamera.Text = "—";
-            MetaLens.Text = "—";
-            MetaDateTaken.Text = "—";
-            MetaDescription.Text = "—";
-            MetaArtist.Text = "—";
-            MetaCopyright.Text = "—";
-
-            if (string.IsNullOrEmpty(path) || !File.Exists(path) || _exifToolPath == null) return;
-
-            try
-            {
-                var metadata = await ReadMetadataWithExifToolAsync(path);
-                if (ct.IsCancellationRequested) return;
-                if (metadata == null) return;
-
-                var make = GetJsonString(metadata, "Make");
-                var model = GetJsonString(metadata, "Model");
-                if (!string.IsNullOrEmpty(model))
-                    MetaCamera.Text = string.IsNullOrEmpty(make) ? model : $"{make} {model}";
-
-                var lens = GetJsonString(metadata, "LensModel");
-                if (!string.IsNullOrEmpty(lens)) MetaLens.Text = lens;
-
-                var dateTaken = GetJsonString(metadata, "DateTimeOriginal");
-                if (string.IsNullOrEmpty(dateTaken)) dateTaken = GetJsonString(metadata, "DateTime");
-                if (!string.IsNullOrEmpty(dateTaken)) MetaDateTaken.Text = dateTaken;
-
-                var desc = GetJsonString(metadata, "ImageDescription");
-                if (string.IsNullOrEmpty(desc)) desc = GetJsonString(metadata, "XMP-dc:Description");
-                if (string.IsNullOrEmpty(desc)) desc = GetJsonString(metadata, "IPTC:Caption-Abstract");
-                if (!string.IsNullOrEmpty(desc)) MetaDescription.Text = desc;
-
-                var artist = GetJsonString(metadata, "Artist");
-                if (string.IsNullOrEmpty(artist)) artist = GetJsonString(metadata, "XMP-dc:Creator");
-                if (string.IsNullOrEmpty(artist)) artist = GetJsonString(metadata, "IPTC:By-line");
-                if (!string.IsNullOrEmpty(artist)) MetaArtist.Text = artist;
-
-                var copyright = GetJsonString(metadata, "Copyright");
-                if (!string.IsNullOrEmpty(copyright)) MetaCopyright.Text = copyright;
-            }
-            catch { }
-        }
-
-        private static string? GetJsonString(JsonElement? metadata, string tag)
-        {
-            if (metadata == null || metadata.Value.ValueKind == JsonValueKind.Null) return null;
-            var m = metadata.Value;
-
-            if (m.TryGetProperty(tag, out var val))
-                return ExtractStringValue(val);
-
-            var groupedTags = new[] { $"EXIF:{tag}", $"XMP:{tag}", $"IPTC:{tag}", $"File:{tag}" };
-            foreach (var grouped in groupedTags)
-            {
-                if (m.TryGetProperty(grouped, out var groupedVal))
-                    return ExtractStringValue(groupedVal);
-            }
-
-            return null;
-        }
-
-        private static string? ExtractStringValue(JsonElement val)
-        {
-            if (val.ValueKind == JsonValueKind.String)
-                return val.GetString();
-            if (val.ValueKind == JsonValueKind.Array)
-            {
-                var parts = new List<string>();
-                foreach (var item in val.EnumerateArray())
-                    if (item.ValueKind == JsonValueKind.String)
-                        parts.Add(item.GetString()!);
-                return parts.Count > 0 ? string.Join(", ", parts) : null;
-            }
-            return val.ToString();
-        }
-
-        private async Task<JsonElement?> ReadMetadataWithExifToolAsync(string path)
-        {
-            if (_exifToolPath == null) return null;
-
-            try
-            {
-                var args = new List<string>
-                {
-                    "-json",
-                    "-G1",
-                    "-DateTimeOriginal", "-DateTime",
-                    "-Make", "-Model", "-LensModel",
-                    "-FocalLength", "-FNumber", "-ExposureTime", "-ISO",
-                    "-ImageDescription", "-Artist", "-Copyright",
-                    "-XMP-dc:Title", "-XMP-dc:Description", "-XMP-dc:Subject", "-XMP-dc:Creator",
-                    "-IPTC:ObjectName", "-IPTC:Caption-Abstract", "-IPTC:Keywords", "-IPTC:By-line",
-                    "-UserComment", "--", path
-                };
-
-                var result = await ExifToolRunner.RunAsync(_exifToolPath, args, TimeSpan.FromSeconds(10));
-                if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.StandardOutput)) return null;
-
-                var arr = JsonSerializer.Deserialize<JsonElement>(result.StandardOutput);
-                if (arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() > 0)
-                    return arr[0];
-                return null;
-            }
-            catch { return null; }
-        }
-
         private void ManageMetadata_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(_currentPreviewPath) || !File.Exists(_currentPreviewPath)) return;
@@ -1130,8 +886,9 @@ namespace WpfApp1
             var dlg = new MetadataDialog(_currentPreviewPath) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
+                _viewModel.InvalidateCache(_currentPreviewPath);
                 LoadExifData(_currentPreviewPath);
-                LoadMetadataPanel(_currentPreviewPath);
+                LoadHistogram(_currentPreviewPath);
             }
         }
 
@@ -1189,8 +946,10 @@ namespace WpfApp1
 
             try
             {
-                _viewModel.LoadMetadataForFileCommand.Execute(_currentPreviewPath);
-                await Task.Delay(500);
+                if (_viewModel.CurrentMetadata == null || _viewModel.CurrentMetadata.FilePath != _currentPreviewPath)
+                {
+                    await _viewModel.LoadMetadataForFileAsync(_currentPreviewPath);
+                }
 
                 if (_viewModel.CurrentMetadata == null)
                 {
@@ -1600,12 +1359,19 @@ namespace WpfApp1
             {
                 string dest = Path.Combine(_currentFolder, _clipboardItem.FileName);
                 if (_clipboardItem.IsFolder)
-                    Directory.Move(_clipboardItem.FilePath, dest);
+                {
+                    if (_clipboardIsCut)
+                        Directory.Move(_clipboardItem.FilePath, dest);
+                    else
+                        CopyDirectory(_clipboardItem.FilePath, dest);
+                }
                 else
-                    File.Copy(_clipboardItem.FilePath, dest, false);
-
-                if (_clipboardIsCut)
-                    File.Delete(_clipboardItem.FilePath);
+                {
+                    if (_clipboardIsCut)
+                        File.Move(_clipboardItem.FilePath, dest);
+                    else
+                        File.Copy(_clipboardItem.FilePath, dest, false);
+                }
 
                 _clipboardItem = null;
                 LoadFolder(_currentFolder);
@@ -1614,6 +1380,15 @@ namespace WpfApp1
             {
                 MessageBox.Show($"Paste failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private static void CopyDirectory(string sourceDir, string destDir)
+        {
+            Directory.CreateDirectory(destDir);
+            foreach (var file in Directory.GetFiles(sourceDir))
+                File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), false);
+            foreach (var dir in Directory.GetDirectories(sourceDir))
+                CopyDirectory(dir, Path.Combine(destDir, Path.GetFileName(dir)));
         }
 
         private void CtxDelete_Click(object sender, RoutedEventArgs e)
@@ -2211,6 +1986,128 @@ namespace WpfApp1
             _viewModel.ToggleThemeCommand.Execute(null);
         }
 
+        private void ToolbarRotate_Click(object sender, RoutedEventArgs e)
+        {
+            if (_viewerIndex < 0 || _viewerIndex >= _thumbs.Count || _thumbs[_viewerIndex].IsFolder) return;
+            var item = _thumbs[_viewerIndex];
+            if (!File.Exists(item.FilePath)) return;
+
+            try
+            {
+                var rotatedPath = Path.Combine(
+                    Path.GetDirectoryName(item.FilePath) ?? "",
+                    Path.GetFileNameWithoutExtension(item.FilePath) + "_rotated" + Path.GetExtension(item.FilePath));
+
+                using var fs = new FileStream(item.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var decoder = BitmapDecoder.Create(fs, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None);
+                if (decoder.Frames.Count == 0) return;
+
+                var frame = decoder.Frames[0];
+                var rotated = new TransformedBitmap(frame, new RotateTransform(90));
+                rotated.Freeze();
+
+                using var outStream = File.Create(rotatedPath);
+                var ext = Path.GetExtension(rotatedPath).ToLowerInvariant();
+                BitmapEncoder encoder = ext switch
+                {
+                    ".jpg" or ".jpeg" => new JpegBitmapEncoder { QualityLevel = 95 },
+                    ".bmp" => new BmpBitmapEncoder(),
+                    ".tiff" or ".tif" => new TiffBitmapEncoder(),
+                    _ => new PngBitmapEncoder()
+                };
+                encoder.Frames.Add(BitmapFrame.Create(rotated));
+                encoder.Save(outStream);
+                outStream.Close();
+
+                File.Delete(item.FilePath);
+                File.Move(rotatedPath, item.FilePath);
+
+                ShowViewer(item);
+                LoadExifData(item.FilePath);
+                LoadHistogram(item.FilePath);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Rotate failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ToolbarCopy_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItems.Count == 0 && string.IsNullOrEmpty(_currentPreviewPath)) return;
+
+            var dlg = new OpenFolderDialog { Title = "Copy to Folder" };
+            if (dlg.ShowDialog() != true) return;
+
+            var dest = dlg.FolderName;
+            var filesToCopy = new List<string>();
+
+            if (_selectedItems.Count > 0)
+                filesToCopy.AddRange(_selectedItems.Where(i => !i.IsFolder).Select(i => i.FilePath));
+            else if (!string.IsNullOrEmpty(_currentPreviewPath) && File.Exists(_currentPreviewPath))
+                filesToCopy.Add(_currentPreviewPath);
+
+            int copied = 0;
+            foreach (var src in filesToCopy)
+            {
+                try
+                {
+                    var destPath = Path.Combine(dest, Path.GetFileName(src));
+                    File.Copy(src, destPath, false);
+                    copied++;
+                }
+                catch { }
+            }
+            StatusSelection.Text = $"Copied {copied} file(s)";
+        }
+
+        private void ToolbarMove_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItems.Count == 0 && string.IsNullOrEmpty(_currentPreviewPath)) return;
+
+            var dlg = new OpenFolderDialog { Title = "Move to Folder" };
+            if (dlg.ShowDialog() != true) return;
+
+            var dest = dlg.FolderName;
+            var filesToMove = new List<string>();
+
+            if (_selectedItems.Count > 0)
+                filesToMove.AddRange(_selectedItems.Where(i => !i.IsFolder).Select(i => i.FilePath));
+            else if (!string.IsNullOrEmpty(_currentPreviewPath) && File.Exists(_currentPreviewPath))
+                filesToMove.Add(_currentPreviewPath);
+
+            int moved = 0;
+            foreach (var src in filesToMove)
+            {
+                try
+                {
+                    var destPath = Path.Combine(dest, Path.GetFileName(src));
+                    File.Move(src, destPath);
+                    moved++;
+                }
+                catch { }
+            }
+
+            if (moved > 0)
+            {
+                ClearSelection();
+                if (!string.IsNullOrEmpty(_currentFolder) && Directory.Exists(_currentFolder))
+                    LoadFolder(_currentFolder);
+            }
+            StatusSelection.Text = $"Moved {moved} file(s)";
+        }
+
+        private void ToolbarDelete_Click(object sender, RoutedEventArgs e)
+        {
+            DeleteSelectedItems();
+        }
+
+        private void ToolbarRename_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedItems.Count == 1)
+                RenameItem(_selectedItems[0]);
+        }
+
         #endregion
 
         #region Fullscreen
@@ -2445,6 +2342,35 @@ namespace WpfApp1
             else if (e.Key == Key.I && Keyboard.Modifiers == ModifierKeys.Control)
             {
                 ManageMetadata_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (e.Key == Key.R && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                ToolbarRotate_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                ToolbarCopy_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                MenuSave_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (e.Key == Key.O && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                MenuOpen_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+            else if (e.Key == Key.P && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                e.Handled = true;
+            }
+            else if (e.Key == Key.F5)
+            {
+                MenuRefresh_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
             else if (e.Key == Key.Back)

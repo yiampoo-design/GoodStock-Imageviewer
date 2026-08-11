@@ -11,9 +11,15 @@ namespace WpfApp1.Services
     public sealed class MetadataService : IMetadataService
     {
         private readonly string? _exifToolPath;
+        private readonly MetadataCacheService _cacheService;
         private bool _disposed;
 
         public string? ExifToolPath => _exifToolPath;
+
+        public void InvalidateCache(string filePath)
+        {
+            _cacheService.Invalidate(filePath);
+        }
 
         public MetadataService()
         {
@@ -23,6 +29,7 @@ namespace WpfApp1.Services
                 "WpfApp1", "tools");
             var inspection = ExifToolService.Inspect(appTools, writableTools);
             _exifToolPath = inspection.Valid ? inspection.BinaryPath : null;
+            _cacheService = new MetadataCacheService();
         }
 
         public async Task<bool> IsAvailableAsync()
@@ -44,6 +51,9 @@ namespace WpfApp1.Services
 
             try
             {
+                var cached = _cacheService.GetCached(filePath);
+                if (cached != null) return cached;
+
                 var args = new[]
                 {
                     "-json", "-G1",
@@ -56,7 +66,7 @@ namespace WpfApp1.Services
                     "-Make", "-Model", "-LensModel",
                     "-Orientation", "-ImageWidth", "-ImageHeight",
                     "-FileSize", "-FileType", "-Rating",
-                    "-GPSLatitude", "-GPSLongitude",
+                    "-GPSLatitude#", "-GPSLongitude#",
                     "-ColorSpace", "-ICC_Profile:ProfileDescription",
                     "--", filePath
                 };
@@ -67,7 +77,11 @@ namespace WpfApp1.Services
 
                 var arr = JsonSerializer.Deserialize<JsonElement>(result.StandardOutput);
                 if (arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() > 0)
-                    return PhotoMetadata.FromExifToolJson(filePath, arr[0]);
+                {
+                    var meta = PhotoMetadata.FromExifToolJson(filePath, arr[0]);
+                    _ = _cacheService.SetCacheAsync(filePath, meta, ct);
+                    return meta;
+                }
                 return null;
             }
             catch (OperationCanceledException) { throw; }
@@ -105,11 +119,28 @@ namespace WpfApp1.Services
                     };
                 }
 
+                _cacheService.Invalidate(filePath);
+
                 var verified = await ReadMetadataAsync(filePath, ct);
+                var mismatches = new List<string>();
+                if (verified != null)
+                {
+                    if (patch.Title != null && verified.Title != patch.Title)
+                        mismatches.Add($"Title: expected '{patch.Title}', got '{verified.Title}'");
+                    if (patch.Description != null && verified.Description != patch.Description)
+                        mismatches.Add("Description mismatch");
+                    if (patch.Creator != null && verified.Creator != patch.Creator)
+                        mismatches.Add($"Creator: expected '{patch.Creator}', got '{verified.Creator}'");
+                    if (patch.Copyright != null && verified.Copyright != patch.Copyright)
+                        mismatches.Add($"Copyright: expected '{patch.Copyright}', got '{verified.Copyright}'");
+                }
+
                 return new MetadataWriteResult
                 {
                     Success = true,
-                    VerifiedMetadata = verified
+                    VerifiedMetadata = verified,
+                    VerificationSucceeded = verified != null && mismatches.Count == 0,
+                    MismatchedFields = mismatches
                 };
             }
             catch (OperationCanceledException) { throw; }
@@ -128,6 +159,7 @@ namespace WpfApp1.Services
         {
             if (_disposed) return;
             _disposed = true;
+            _cacheService.Dispose();
         }
     }
 }

@@ -8,5 +8,7 @@ namespace WpfApp1.Models
         public string? ErrorMessage { get; set; }
         public PhotoMetadata? VerifiedMetadata { get; set; }
         public List<string> Warnings { get; set; } = new();
+        public bool VerificationSucceeded { get; set; }
+        public List<string> MismatchedFields { get; set; } = new();
     }
 }
