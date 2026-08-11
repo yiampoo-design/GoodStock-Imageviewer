@@ -1232,7 +1232,7 @@ namespace WpfApp1
 
         private ThumbItem? _renameTarget;
 
-        private void RenameItem(ThumbItem item)
+        private async void RenameItem(ThumbItem item)
         {
             if (item == null) return;
             _renameTarget = item;
@@ -1343,10 +1343,13 @@ namespace WpfApp1
                     return;
                 }
 
-                if (item.IsFolder)
-                    Directory.Move(item.FilePath, newPath);
-                else
-                    File.Move(item.FilePath, newPath);
+                var result = await _fileOps.RenameFileAsync(item.FilePath, newName);
+                if (result.Errors.Count > 0)
+                {
+                    MessageBox.Show($"Rename failed: {result.Errors[0]}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    _renameTarget = null;
+                    return;
+                }
 
                 item.FilePath = newPath;
                 item.FileName = newName;
