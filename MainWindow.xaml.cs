@@ -1429,25 +1429,19 @@ namespace WpfApp1
             if (_clipboardItem == null || string.IsNullOrEmpty(_currentFolder)) return;
             try
             {
-                if (_clipboardItem.IsFolder)
-                {
-                    string dest = Path.Combine(_currentFolder, _clipboardItem.FileName);
-                    if (_clipboardIsCut)
-                        Directory.Move(_clipboardItem.FilePath, dest);
-                    else
-                        CopyDirectory(_clipboardItem.FilePath, dest);
-                }
-                else
-                {
-                    var result = _clipboardIsCut
+                var result = _clipboardItem.IsFolder
+                    ? _clipboardIsCut
+                        ? await _fileOps.MoveDirectoryAsync(_clipboardItem.FilePath, _currentFolder)
+                        : await _fileOps.CopyDirectoryAsync(_clipboardItem.FilePath, _currentFolder)
+                    : _clipboardIsCut
                         ? await _fileOps.MoveFilesAsync(new[] { _clipboardItem.FilePath }, _currentFolder)
                         : await _fileOps.CopyFilesAsync(new[] { _clipboardItem.FilePath }, _currentFolder);
-                    if (result.Errors.Count > 0)
-                    {
-                        MessageBox.Show($"Paste failed:\n{string.Join("\n", result.Errors.Take(5))}",
-                            "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        return;
-                    }
+
+                if (result.Errors.Count > 0)
+                {
+                    MessageBox.Show($"Paste failed:\n{string.Join("\n", result.Errors.Take(5))}",
+                        "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
                 }
 
                 _clipboardItem = null;
@@ -1457,20 +1451,6 @@ namespace WpfApp1
             {
                 MessageBox.Show($"Paste failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        }
-
-        private static void CopyDirectory(string sourceDir, string destDir)
-        {
-            var sourceFull = Path.GetFullPath(sourceDir).TrimEnd('\\', '/');
-            var destFull = Path.GetFullPath(destDir).TrimEnd('\\', '/');
-            if (destFull.StartsWith(sourceFull + "\\", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Cannot copy a folder into itself.");
-
-            Directory.CreateDirectory(destDir);
-            foreach (var file in Directory.GetFiles(sourceDir))
-                File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), false);
-            foreach (var dir in Directory.GetDirectories(sourceDir))
-                CopyDirectory(dir, Path.Combine(destDir, Path.GetFileName(dir)));
         }
 
         private void CtxDelete_Click(object sender, RoutedEventArgs e)
@@ -1535,7 +1515,10 @@ namespace WpfApp1
 
             ShowOverlay(ViewerOverlay);
             ViewerTitle.Text = item.FileName;
-            ViewerCounter.Text = $"#{item.Index} of {_thumbs.Count(t => !t.IsFolder)}";
+            // Image-only position and total: folders must not affect the counter.
+            var images = _thumbs.Where(t => !t.IsFolder).ToList();
+            var imagePosition = images.IndexOf(item) + 1;
+            ViewerCounter.Text = $"#{imagePosition} of {images.Count}";
             ViewerZoom.Text = "100%";
             _viewerZoom = 1.0;
             _viewerRotation = 0;

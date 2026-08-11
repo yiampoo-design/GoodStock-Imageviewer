@@ -17,6 +17,8 @@ namespace WpfApp1.Services
     {
         Task<FileOperationResult> CopyFilesAsync(IEnumerable<string> sourcePaths, string destinationFolder, CancellationToken ct = default);
         Task<FileOperationResult> MoveFilesAsync(IEnumerable<string> sourcePaths, string destinationFolder, CancellationToken ct = default);
+        Task<FileOperationResult> CopyDirectoryAsync(string sourceDir, string destinationFolder, CancellationToken ct = default);
+        Task<FileOperationResult> MoveDirectoryAsync(string sourceDir, string destinationFolder, CancellationToken ct = default);
         Task<FileOperationResult> DeleteToRecycleBinAsync(IEnumerable<string> paths, CancellationToken ct = default);
         Task<FileOperationResult> RenameFileAsync(string filePath, string newName, CancellationToken ct = default);
     }
