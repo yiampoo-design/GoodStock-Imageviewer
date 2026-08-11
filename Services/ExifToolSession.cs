@@ -13,8 +13,12 @@ namespace WpfApp1.Services
         private Process? _process;
         private readonly string _binaryPath;
         private readonly object _lock = new();
+        private readonly SemaphoreSlim _commandSemaphore = new(1, 1);
         private bool _disposed;
+        private int _requestCounter;
         private const int DefaultTimeoutMs = 30000;
+        private const int ShutdownTimeoutMs = 5000;
+        private const int RestartDelayMs = 500;
 
         public ExifToolSession(string binaryPath)
         {
@@ -34,11 +38,11 @@ namespace WpfApp1.Services
             lock (_lock)
             {
                 if (_process != null && !_process.HasExited) return;
-                StartProcess();
+                StartProcessUnlocked();
             }
         }
 
-        private void StartProcess()
+        private void StartProcessUnlocked()
         {
             _process?.Dispose();
             _process = new Process
@@ -46,7 +50,7 @@ namespace WpfApp1.Services
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = _binaryPath,
-                    Arguments = "-stay_open True -overwrite_original",
+                    Arguments = "-stay_open True -@ -",
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -55,14 +59,43 @@ namespace WpfApp1.Services
                     UseShellExecute = false,
                     CreateNoWindow = true,
                 },
+                EnableRaisingEvents = true,
             };
             _process.Start();
+        }
+
+        private void RestartProcess()
+        {
+            lock (_lock)
+            {
+                try { _process?.Kill(); } catch { }
+                _process?.Dispose();
+                _process = null;
+                Thread.Sleep(RestartDelayMs);
+                StartProcessUnlocked();
+            }
         }
 
         public async Task<ExifToolResult> RunCommandAsync(
             IEnumerable<string> arguments,
             TimeSpan? timeout = null,
             CancellationToken ct = default)
+        {
+            await _commandSemaphore.WaitAsync(ct);
+            try
+            {
+                return await RunCommandInternalAsync(arguments, timeout, ct);
+            }
+            finally
+            {
+                _commandSemaphore.Release();
+            }
+        }
+
+        private async Task<ExifToolResult> RunCommandInternalAsync(
+            IEnumerable<string> arguments,
+            TimeSpan? timeout,
+            CancellationToken ct)
         {
             EnsureRunning();
             var effectiveTimeout = timeout ?? TimeSpan.FromMilliseconds(DefaultTimeoutMs);
@@ -73,27 +106,33 @@ namespace WpfApp1.Services
                     return new ExifToolResult(-1, "", "ExifTool session not running", false);
             }
 
+            var requestId = Interlocked.Increment(ref _requestCounter);
+            var readyMarker = $"{{ready{requestId}}}";
+
             var cmdBuilder = new StringBuilder();
             cmdBuilder.AppendLine("-charset");
             cmdBuilder.AppendLine("filename=UTF8");
             foreach (var arg in arguments)
                 cmdBuilder.AppendLine(arg);
-            cmdBuilder.AppendLine("-execute");
-            cmdBuilder.AppendLine("-stay_open");
-            cmdBuilder.AppendLine("True");
+            cmdBuilder.AppendLine($"-execute{requestId}");
 
             var cmdText = cmdBuilder.ToString();
-
-            string stdout;
-            string stderr;
 
             lock (_lock)
             {
                 if (_process == null || _process.HasExited)
                     return new ExifToolResult(-1, "", "ExifTool session died", false);
 
-                _process.StandardInput.Write(cmdText);
-                _process.StandardInput.Flush();
+                try
+                {
+                    _process.StandardInput.Write(cmdText);
+                    _process.StandardInput.Flush();
+                }
+                catch (Exception ex)
+                {
+                    RestartProcess();
+                    return new ExifToolResult(-1, "", $"Write failed, session restarted: {ex.Message}", false);
+                }
             }
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -102,38 +141,54 @@ namespace WpfApp1.Services
             var stdoutTask = Task.Run(async () =>
             {
                 var sb = new StringBuilder();
-                while (!timeoutCts.Token.IsCancellationRequested)
+                try
                 {
-                    var line = await ReadLineAsync(_process?.StandardOutput);
-                    if (line == null) break;
-                    if (line == "{ready}") break;
-                    sb.AppendLine(line);
+                    while (!timeoutCts.Token.IsCancellationRequested)
+                    {
+                        var line = await ReadLineAsync(_process?.StandardOutput);
+                        if (line == null) break;
+                        if (line == readyMarker) break;
+                        sb.AppendLine(line);
+                    }
                 }
+                catch (OperationCanceledException) { }
+                catch { }
                 return sb.ToString();
             }, timeoutCts.Token);
 
             var stderrTask = Task.Run(async () =>
             {
                 var sb = new StringBuilder();
-                while (!timeoutCts.Token.IsCancellationRequested)
+                try
                 {
-                    var line = await ReadLineAsync(_process?.StandardError);
-                    if (line == null) break;
-                    if (line == "{ready}") break;
-                    sb.AppendLine(line);
+                    while (!timeoutCts.Token.IsCancellationRequested)
+                    {
+                        var line = await ReadLineAsync(_process?.StandardError);
+                        if (line == null) break;
+                        if (line.StartsWith("{ready")) break;
+                        sb.AppendLine(line);
+                    }
                 }
+                catch (OperationCanceledException) { }
+                catch { }
                 return sb.ToString();
             }, timeoutCts.Token);
 
             try
             {
-                stdout = await stdoutTask;
-                stderr = await stderrTask;
+                var stdout = await stdoutTask;
+                var stderr = await stderrTask;
                 return new ExifToolResult(0, stdout.TrimEnd(), stderr.TrimEnd(), false);
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                return new ExifToolResult(-1, "", "Command timed out", true);
+                RestartProcess();
+                return new ExifToolResult(-1, "", "Command timed out, session restarted", true);
+            }
+            catch (Exception ex)
+            {
+                RestartProcess();
+                return new ExifToolResult(-1, "", $"Command failed, session restarted: {ex.Message}", false);
             }
         }
 
@@ -148,6 +203,7 @@ namespace WpfApp1.Services
         {
             if (_disposed) return;
             _disposed = true;
+            _commandSemaphore.Dispose();
             lock (_lock)
             {
                 if (_process != null && !_process.HasExited)
@@ -156,7 +212,7 @@ namespace WpfApp1.Services
                     {
                         _process.StandardInput.Write("-stay_open\nFalse\n");
                         _process.StandardInput.Flush();
-                        _process.WaitForExit(5000);
+                        _process.WaitForExit(ShutdownTimeoutMs);
                     }
                     catch
                     {
