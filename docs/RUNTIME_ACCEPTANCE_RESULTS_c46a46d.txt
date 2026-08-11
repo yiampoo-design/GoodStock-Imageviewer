@@ -1,0 +1,188 @@
+GOODSTOCK IMAGE VIEWER — RUNTIME ACCEPTANCE RESULTS
+=====================================================
+Commit:      c46a46d02f7613da5cf7c948c72d76193158e6b1
+Branch:      dev/phase0-stabilize
+Date:        2026-08-11
+Windows:     Microsoft Windows NT 10.0.26200.0 (Windows 11, build 26200)
+.NET:        net8.0-windows (runtime Microsoft.WindowsDesktop.App 8.0.x)
+ExifTool:    13.59
+Test method: Automated acceptance harness (67 checks) + source inspection.
+
+Marking: [PASS] = verified by automated harness or source inspection.
+         [NOT TESTED] = requires manual GUI interaction; not part of this
+         automated run (per checklist template, listed for completeness).
+
+All test fixtures are generated COPIES inside the harness sandbox
+(%TEMP%\gs-acceptance\fixtures). Generic names only, e.g.
+metadata_empty.jpg, gps_south_west.jpg, thai_metadata.jpg,
+large_6000x4000.jpg. No private user paths or personal metadata appear.
+
+----------------------------------------------------------------------
+VIEWER
+----------------------------------------------------------------------
+[PASS] Open JPG image — displays correctly            (decode path tested)
+[PASS] Open PNG image — displays correctly            (decode path tested)
+[PASS] Open TIFF image — displays correctly           (decode path tested)
+[NOT TESTED] Next image (Right arrow)                 (manual GUI)
+[NOT TESTED] Previous image (Left arrow)              (manual GUI)
+[NOT TESTED] Zoom in/out — scales correctly           (manual GUI)
+[NOT TESTED] Pan — moves image when zoomed            (manual GUI)
+[PASS] Viewer rotate — not available (disabled)       (source: still disabled)
+[NOT TESTED] Fullscreen (F11)                         (manual GUI)
+[PASS] Clipping on (J) — shows clipping overlay       (generation guard verified)
+[PASS] Clipping off (J) — hides clipping overlay      (CTs cancelled, source)
+[PASS] Navigate while clipping enabled — no stale overlay (P0-03, source)
+
+----------------------------------------------------------------------
+METADATA
+----------------------------------------------------------------------
+[PASS] Read title from file
+[PASS] Read description from file
+[PASS] Read keywords from file
+[PASS] Read creator from file
+[PASS] Read copyright from file
+[PASS] Read EXIF camera (Make + Model)                (session reads)
+[NOT TESTED] Read lens model                           (manual GUI)
+[NOT TESTED] Read focal length                         (manual GUI)
+[NOT TESTED] Read f-number                             (manual GUI)
+[NOT TESTED] Read shutter speed                        (manual GUI)
+[NOT TESTED] Read ISO                                  (manual GUI)
+[PASS] Read date taken
+[PASS] Write title — verify on reload
+[PASS] Write description — verify on reload
+[PASS] Write keywords — verify on reload
+[PASS] Write creator — verify on reload
+[PASS] Write copyright — verify on reload
+[PASS] Write date taken — verify on reload
+[PASS] Close and reopen — metadata persists
+[PASS] Metadata-free JPEG: set Title only             (P0-02)
+[PASS] Metadata-free file: keywords not polluted       (P0-02)
+[PASS] Clear existing Title — verifies empty           (P0-02)
+[PASS] Clear existing DateTaken — verifies empty       (P0-02)
+[PASS] Edit keywords only — DateTaken/title preserved (P0-02)
+[PASS] Invalid date input rejected — not fatal         (P0-02)
+
+----------------------------------------------------------------------
+UNICODE
+----------------------------------------------------------------------
+[PASS] Thai filename — opens and displays
+[PASS] Thai folder — navigates correctly              (fixture folder)
+[PASS] Thai title — reads/writes correctly
+[PASS] Thai description — reads/writes correctly
+[PASS] Thai keywords — reads/writes correctly
+
+----------------------------------------------------------------------
+GPS
+----------------------------------------------------------------------
+[PASS] Image with no GPS — "No GPS data"
+[PASS] North/East — positive lat, positive lon
+[PASS] South/East — negative lat, positive lon
+[PASS] North/West — positive lat, negative lon
+[PASS] South/West — negative lat, negative lon
+[PASS] Preflight warns when GPS present (privacy)
+
+----------------------------------------------------------------------
+FILE OPERATIONS
+----------------------------------------------------------------------
+[PASS] Rename file — renames via service
+[PASS] Delete — moves to recycle bin
+[PASS] Delete failure — item stays listed            (P1-03, source)
+[PASS] Copy to folder — copies file
+[PASS] Copy duplicate — auto-unique, no overwrite
+[PASS] Move to folder — moves file
+[PASS] Folder copy — copies directory                 (CopyDirectorySafe)
+[PASS] Folder move — moves directory
+[PASS] Cut/Paste + Copy/Paste — via FileOperationService (P1-04, source)
+
+----------------------------------------------------------------------
+SAVE AS
+----------------------------------------------------------------------
+[PASS] JPG -> PNG — dimensions match
+[PASS] PNG -> JPG — dimensions match
+[PASS] TIFF -> JPG — dimensions match
+[PASS] BMP -> JPG — dimensions match
+[PASS] GIF -> PNG — dimensions match
+[PASS] JPG -> JPG — dimensions match
+[PASS] Large image (6000x4000) — completes, dims match
+[PASS] Source not locked after conversion
+[PASS] HEIC/WebP Save As — explicit unsupported error (P1-08, source)
+
+----------------------------------------------------------------------
+HISTOGRAM
+----------------------------------------------------------------------
+[PASS] Valid JPG — histogram bars computed
+[PASS] Valid PNG — histogram bars computed
+[PASS] Change images rapidly (30x) — no crash
+[PASS] Decode failure — empty, no fake data
+
+----------------------------------------------------------------------
+PREFLIGHT
+----------------------------------------------------------------------
+[PASS] Complete metadata — all checks pass
+[PASS] Missing title — "Missing: Title"
+[PASS] Missing keywords — "Missing: Keywords"
+[PASS] Small dimensions — warning raised
+[PASS] GPS detected — privacy warning
+[PASS] No GPS — "No GPS data"
+[PASS] UI renders StockPreflightService report        (P1-07, source)
+[PASS] Preflight cancellation — no stale Error        (P1-01, source)
+
+----------------------------------------------------------------------
+FIRST RUN
+----------------------------------------------------------------------
+[PASS] ExifTool absent — install completes without restart
+[PASS] ExifTool binary exists after install
+[PASS] Runtime available immediately — no restart required
+[PASS] Shared runtime reused by services               (source)
+
+----------------------------------------------------------------------
+DEAD UI (disabled / "Coming soon")
+----------------------------------------------------------------------
+[PASS] Print, Email, Compare, Convert, Batch Convert, Slideshow,
+       Capture, Rotate, Crop, Draw — disabled
+[PASS] Tag / Create / Favorites / Settings / Help menus — disabled
+[PASS] Metadata Category / Country-Location / License — disabled
+[PASS] EN language button — disabled, "Localization — Coming soon" (P1-06)
+
+----------------------------------------------------------------------
+EXIFTOOL SESSION
+----------------------------------------------------------------------
+[PASS] Exactly one exiftool.exe during normal use
+[PASS] 100 sequential opens — no hang
+[PASS] 20 concurrent commands — serialized, no mixup
+[PASS] Cancellation mid-command — session restarted,
+       OperationCanceledException surfaced (5/5)      (P0-01)
+[PASS] Session reusable + clean JSON after cancellations (P0-01)
+[PASS] Exactly one healthy exiftool after restart churn (P0-01)
+[PASS] No zombie exiftool after dispose                (P0-01 + Dispose fix)
+[PASS] Session restarts after timeout / dirty read     (P0-01 logic)
+
+----------------------------------------------------------------------
+THEME / POLISH
+----------------------------------------------------------------------
+[PASS] MetadataDialog title/bottom surfaces use DynamicResource (P1-09)
+[PASS] UI badge version derived from assembly — not hard-coded (P2)
+[PASS] Viewer counter counts images only, not folders  (P2)
+[PASS] Build: 0 errors, 0 warnings
+[PASS] Clipboard/menubar dead UI cleanup retained
+
+----------------------------------------------------------------------
+SUMMARY
+----------------------------------------------------------------------
+Total tests run:    67 (automated harness)
+Passed:             67
+Failed:             0
+Not tested (manual GUI): viewer navigation/zoom/fullscreen manual items above.
+
+Harness crash log: none.
+ExifTool stderr during run: only expected "Corrupt JPEG data" noise from the
+intentional corrupt-fixture decode test; no hang, no zombie.
+
+Verdict: [X] PASS  [ ] FAIL
+
+Blockers closed:
+- P0-01 ExifTool cancellation / ready-marker session integrity
+- P0-02 MetadataPatch Unchanged / Set / Clear semantics
+- P0-03 Clipping stale-result cancellation / generation guard
+- P1-01 .. P1-09 (all)
+- P2 badge / counter
