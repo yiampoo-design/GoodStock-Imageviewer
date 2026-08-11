@@ -3,17 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Manage Image Info (Metadata)" Width="520" Height="580"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        Background="#0E1117" Foreground="White"
-        WindowStyle="None" AllowsTransparency="True" BorderBrush="#30363D" BorderThickness="1">
+        Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextPrimaryBrush}"
+        WindowStyle="None" AllowsTransparency="True" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
     <Window.Resources>
-        <SolidColorBrush x:Key="BgBrush" Color="#0E1117"/>
-        <SolidColorBrush x:Key="BgInstructBrush" Color="#161B22"/>
-        <SolidColorBrush x:Key="BtnBgBrush" Color="#1C2128"/>
-        <SolidColorBrush x:Key="BorderBrush" Color="#30363D"/>
-        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#E6EDF3"/>
-        <SolidColorBrush x:Key="TextMutedBrush" Color="#7D8590"/>
-        <SolidColorBrush x:Key="AccentBrush" Color="#2F81F7"/>
-        <SolidColorBrush x:Key="AccentHoverBrush" Color="#388BFD"/>
     </Window.Resources>
 
     <Grid>
@@ -27,12 +19,12 @@
         <Border Grid.Row="0" Background="#161B22" MouseLeftButtonDown="Titlebar_MouseLeftButtonDown"
                 MouseMove="Titlebar_MouseMove" MouseLeftButtonUp="Titlebar_MouseLeftButtonUp">
             <Grid Margin="12,0">
-                <TextBlock Text="Manage Image Info (Metadata)" Foreground="{StaticResource TextPrimaryBrush}"
+                <TextBlock Text="Manage Image Info (Metadata)" Foreground="{DynamicResource TextPrimaryBrush}"
                            FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 <Button HorizontalAlignment="Right" Background="Transparent" BorderThickness="0"
                         Click="Close_Click" Width="24" Height="24" Cursor="Hand" ToolTip="Close">
                     <TextBlock Text="&#xE106;" FontFamily="Segoe MDL2 Assets" FontSize="10"
-                               Foreground="{StaticResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                               Foreground="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Button>
             </Grid>
         </Border>
@@ -41,44 +33,44 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,16">
             <StackPanel>
                 <!-- Image Preview -->
-                <Border Background="{StaticResource BgInstructBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,16">
+                <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,16">
                     <StackPanel Orientation="Horizontal">
                         <Border Width="64" Height="64" CornerRadius="6" ClipToBounds="True" Margin="0,0,12,0">
                             <Image x:Name="MetaPreview" Stretch="Uniform"/>
                         </Border>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock x:Name="MetaFileName" Foreground="{StaticResource TextPrimaryBrush}"
+                            <TextBlock x:Name="MetaFileName" Foreground="{DynamicResource TextPrimaryBrush}"
                                        FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                            <TextBlock x:Name="MetaFileInfo" Foreground="{StaticResource TextMutedBrush}"
+                            <TextBlock x:Name="MetaFileInfo" Foreground="{DynamicResource TextMutedBrush}"
                                        FontSize="11" Margin="0,2,0,0"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
                 <!-- Title -->
-                <TextBlock Text="Title" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                <TextBlock Text="Title" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1" Margin="0,0,0,12">
-                    <TextBox x:Name="MetaTitle" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
-                             BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{StaticResource AccentBrush}"/>
+                    <TextBox x:Name="MetaTitle" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
+                             BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{DynamicResource AccentBrush}"/>
                 </Border>
 
                 <!-- Description -->
-                <TextBlock Text="Description" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                <TextBlock Text="Description" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1" Margin="0,0,0,12">
-                    <TextBox x:Name="MetaDescription" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
+                    <TextBox x:Name="MetaDescription" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
                              BorderThickness="0" Padding="10,8" FontSize="13" TextWrapping="Wrap"
-                             AcceptsReturn="True" MinHeight="60" MaxHeight="120" CaretBrush="{StaticResource AccentBrush}"
+                             AcceptsReturn="True" MinHeight="60" MaxHeight="120" CaretBrush="{DynamicResource AccentBrush}"
                              VerticalScrollBarVisibility="Auto"/>
                 </Border>
 
                 <!-- Tags -->
-                <TextBlock Text="Tags / Keywords (comma separated)" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                <TextBlock Text="Tags / Keywords (comma separated)" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1" Margin="0,0,0,12">
-                    <TextBox x:Name="MetaTags" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
-                             BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{StaticResource AccentBrush}"/>
+                    <TextBox x:Name="MetaTags" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
+                             BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{DynamicResource AccentBrush}"/>
                 </Border>
 
                 <!-- Category + Country -->
@@ -89,10 +81,10 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Category — Coming soon" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                        <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                        <TextBlock Text="Category — Coming soon" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1">
-                            <ComboBox x:Name="MetaCategory" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
+                            <ComboBox x:Name="MetaCategory" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
                                       BorderThickness="0" Padding="8,6" FontSize="13" IsEnabled="False">
                                 <ComboBoxItem Content="-" IsSelected="True"/>
                                 <ComboBoxItem Content="Landscape"/>
@@ -107,12 +99,12 @@
                         </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="Country / Location — Coming soon" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                        <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                        <TextBlock Text="Country / Location — Coming soon" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1">
-                            <TextBox x:Name="MetaLocation" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
+                            <TextBox x:Name="MetaLocation" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
                                      IsEnabled="False"
-                                     BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{StaticResource AccentBrush}"/>
+                                     BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{DynamicResource AccentBrush}"/>
                         </Border>
                     </StackPanel>
                 </Grid>
@@ -125,19 +117,19 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Creator / Photographer" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                        <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                        <TextBlock Text="Creator / Photographer" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1">
-                            <TextBox x:Name="MetaCreator" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
-                                     BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{StaticResource AccentBrush}"/>
+                            <TextBox x:Name="MetaCreator" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{DynamicResource AccentBrush}"/>
                         </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="Copyright" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                        <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                        <TextBlock Text="Copyright" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1">
-                            <TextBox x:Name="MetaCopyright" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
-                                     BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{StaticResource AccentBrush}"/>
+                            <TextBox x:Name="MetaCopyright" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{DynamicResource AccentBrush}"/>
                         </Border>
                     </StackPanel>
                 </Grid>
@@ -150,18 +142,18 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="Date Taken" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                        <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                        <TextBlock Text="Date Taken" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1">
-                            <TextBox x:Name="MetaDateTaken" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
-                                     BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{StaticResource AccentBrush}"/>
+                            <TextBox x:Name="MetaDateTaken" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
+                                     BorderThickness="0" Padding="10,8" FontSize="13" CaretBrush="{DynamicResource AccentBrush}"/>
                         </Border>
                     </StackPanel>
                     <StackPanel Grid.Column="2">
-                        <TextBlock Text="License — Coming soon" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                        <Border Background="{StaticResource BgInstructBrush}" CornerRadius="6" BorderBrush="{StaticResource BorderBrush}"
+                        <TextBlock Text="License — Coming soon" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                        <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="6" BorderBrush="{DynamicResource BorderBrush}"
                                 BorderThickness="1">
-                            <ComboBox x:Name="MetaLicense" Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
+                            <ComboBox x:Name="MetaLicense" Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
                                       IsEnabled="False"
                                       BorderThickness="0" Padding="8,6" FontSize="13">
                                 <ComboBoxItem Content="-" IsSelected="True"/>
@@ -176,10 +168,10 @@
                 </Grid>
 
                 <!-- Original Data -->
-                <Border Background="{StaticResource BgInstructBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,12">
+                <Border Background="{DynamicResource BgInstructBrush}" CornerRadius="8" Padding="12" Margin="0,0,0,12">
                     <StackPanel>
-                        <TextBlock Text="ORIGINAL DATA" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,8"/>
-                        <TextBlock x:Name="MetaOriginalData" Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                        <TextBlock Text="ORIGINAL DATA" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" Margin="0,0,0,8"/>
+                        <TextBlock x:Name="MetaOriginalData" Foreground="{DynamicResource TextMutedBrush}" FontSize="11"
                                    TextWrapping="Wrap" MaxHeight="80"/>
                     </StackPanel>
                 </Border>
@@ -187,17 +179,17 @@
         </ScrollViewer>
 
         <!-- Bottom buttons -->
-        <Border Grid.Row="2" Background="#161B22" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+        <Border Grid.Row="2" Background="#161B22" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
             <Grid Margin="16,12">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Content="Reset from EXIF" Click="ResetFromExif_Click" Cursor="Hand"
-                            Background="Transparent" Foreground="{StaticResource TextMutedBrush}"
+                            Background="Transparent" Foreground="{DynamicResource TextMutedBrush}"
                             BorderThickness="0" Padding="12,6" FontSize="12" Margin="0,0,12,0"/>
                     <Button Content="Cancel" Click="Close_Click" Cursor="Hand"
-                            Background="Transparent" Foreground="{StaticResource TextPrimaryBrush}"
+                            Background="Transparent" Foreground="{DynamicResource TextPrimaryBrush}"
                             BorderThickness="0" Padding="12,6" FontSize="12" Margin="0,0,12,0"/>
                     <Button Content=" Save Image Info" Click="Save_Click" Cursor="Hand"
-                            Background="{StaticResource AccentBrush}" Foreground="White"
+                            Background="{DynamicResource AccentBrush}" Foreground="White"
                             BorderThickness="0" Padding="14,8" FontSize="12" FontWeight="SemiBold">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
