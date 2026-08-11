@@ -17,11 +17,11 @@ namespace WpfApp1
         private System.Windows.Point _dragStart;
         private bool _isDragging;
 
-        public MetadataDialog(string filePath)
+        public MetadataDialog(string filePath, ExifToolRuntimeService runtime)
         {
             InitializeComponent();
             _filePath = filePath;
-            _metadataService = new MetadataService();
+            _metadataService = new MetadataService(runtime);
             _ = LoadMetadataAsync();
         }
 

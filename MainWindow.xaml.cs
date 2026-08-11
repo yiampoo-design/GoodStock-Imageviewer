@@ -71,12 +71,22 @@ namespace WpfApp1
         private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
             { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".tif", ".webp", ".heic", ".ico" };
 
+        private readonly Services.ExifToolRuntimeService _exifToolRuntime = new();
+
         public MainWindow()
         {
             InitializeComponent();
-            _viewModel = new MainViewModel();
+            _exifToolRuntime.ProbeExisting();
+            _viewModel = new MainViewModel(_exifToolRuntime);
             DataContext = _viewModel;
             Loaded += MainWindow_Loaded;
+            Closing += MainWindow_Closing;
+        }
+
+        private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            _viewModel.Dispose();
+            _exifToolRuntime.Dispose();
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -101,17 +111,9 @@ namespace WpfApp1
             ExifToolBadge.Visibility = Visibility.Visible;
             ExifToolStatusText.Text = "Installing ExifTool...";
 
-            var writableTools = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "WpfApp1", "tools");
-
             try
             {
-                Directory.CreateDirectory(writableTools);
-                var archivePath = Path.Combine(writableTools, "exiftool.zip");
-                await ExifToolService.DownloadArchiveAsync(archivePath, null, CancellationToken.None);
-                var binaryPath = await ExifToolService.InstallArchiveAtomicallyAsync(archivePath, writableTools, CancellationToken.None);
-
+                await _exifToolRuntime.InstallAsync(progress: null, ct: CancellationToken.None);
                 _viewModel.RefreshMetadataAvailability();
                 ExifToolBadge.Visibility = Visibility.Collapsed;
             }
@@ -931,7 +933,7 @@ namespace WpfApp1
         {
             if (string.IsNullOrEmpty(_currentPreviewPath) || !File.Exists(_currentPreviewPath)) return;
 
-            var dlg = new MetadataDialog(_currentPreviewPath) { Owner = this };
+            var dlg = new MetadataDialog(_currentPreviewPath, _exifToolRuntime) { Owner = this };
             if (dlg.ShowDialog() == true)
             {
                 _viewModel.InvalidateCache(_currentPreviewPath);
@@ -1459,7 +1461,7 @@ namespace WpfApp1
         {
             if (sender is MenuItem mi && mi.Tag is ThumbItem item && !item.IsFolder)
             {
-                var dialog = new MetadataDialog(item.FilePath) { Owner = this };
+                var dialog = new MetadataDialog(item.FilePath, _exifToolRuntime) { Owner = this };
                 dialog.ShowDialog();
             }
         }

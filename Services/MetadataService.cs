@@ -11,47 +11,39 @@ namespace WpfApp1.Services
 {
     public sealed class MetadataService : IMetadataService
     {
-        private readonly string? _exifToolPath;
+        private readonly ExifToolRuntimeService _runtime;
         private readonly MetadataCacheService _cacheService;
-        private ExifToolSession? _session;
         private bool _disposed;
 
-        public string? ExifToolPath => _exifToolPath;
+        public string? ExifToolPath => _runtime.BinaryPath;
+
+        public event EventHandler? AvailabilityChanged;
 
         public void InvalidateCache(string filePath)
         {
             _cacheService.Invalidate(filePath);
         }
 
-        public MetadataService()
+        public MetadataService(ExifToolRuntimeService runtime)
         {
-            var appTools = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tools");
-            var writableTools = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "WpfApp1", "tools");
-            var inspection = ExifToolService.Inspect(appTools, writableTools);
-            _exifToolPath = inspection.Valid ? inspection.BinaryPath : null;
+            _runtime = runtime;
             _cacheService = new MetadataCacheService();
-            if (_exifToolPath != null)
-                _session = new ExifToolSession(_exifToolPath);
+            _runtime.RuntimeAvailable += OnRuntimeAvailable;
         }
 
-        public async Task<bool> IsAvailableAsync()
+        private void OnRuntimeAvailable(object? sender, EventArgs e)
         {
-            if (_exifToolPath == null) return false;
-            try
-            {
-                _session?.EnsureRunning();
-                var result = await _session!.RunCommandAsync(
-                    new[] { "-ver" }, TimeSpan.FromSeconds(5));
-                return result.ExitCode == 0;
-            }
-            catch { return false; }
+            AvailabilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public Task<bool> IsAvailableAsync()
+        {
+            return Task.FromResult(_runtime.IsAvailable);
         }
 
         public async Task<PhotoMetadata?> ReadMetadataAsync(string filePath, CancellationToken ct = default)
         {
-            if (_exifToolPath == null || string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+            if (!_runtime.IsAvailable || string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
                 return null;
 
             try
@@ -59,7 +51,7 @@ namespace WpfApp1.Services
                 var cached = _cacheService.GetCached(filePath);
                 if (cached != null) return cached;
 
-                _session?.EnsureRunning();
+                var session = _runtime.GetSession();
                 var args = new[]
                 {
                     "-json", "-G1",
@@ -74,11 +66,12 @@ namespace WpfApp1.Services
                     "-Orientation", "-ImageWidth", "-ImageHeight",
                     "-FileSize", "-FileType", "-Rating",
                     "-GPSLatitude", "-GPSLongitude",
+                    "-GPSLatitudeRef", "-GPSLongitudeRef",
                     "-ColorSpace", "-ICC_Profile:ProfileDescription",
                     "--", filePath
                 };
 
-                var result = await _session!.RunCommandAsync(args, TimeSpan.FromSeconds(15), ct);
+                var result = await session.RunCommandAsync(args, TimeSpan.FromSeconds(15), ct);
                 if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.StandardOutput))
                     return null;
 
@@ -97,7 +90,7 @@ namespace WpfApp1.Services
 
         public async Task<MetadataWriteResult> WriteMetadataAsync(string filePath, MetadataPatch patch, CancellationToken ct = default)
         {
-            if (_exifToolPath == null)
+            if (!_runtime.IsAvailable)
                 return new MetadataWriteResult { Success = false, ErrorMessage = "ExifTool is not installed." };
             if (!patch.HasChanges)
                 return new MetadataWriteResult { Success = false, ErrorMessage = "No changes to apply." };
@@ -109,13 +102,13 @@ namespace WpfApp1.Services
             {
                 File.Copy(filePath, backupPath, true);
 
-                _session?.EnsureRunning();
+                var session = _runtime.GetSession();
                 var args = new List<string> { "-overwrite_original", "-sep", ", " };
                 args.AddRange(patch.ToExifToolArgs());
                 args.Add("--");
                 args.Add(filePath);
 
-                var result = await _session!.RunCommandAsync(args, TimeSpan.FromSeconds(30), ct);
+                var result = await session.RunCommandAsync(args, TimeSpan.FromSeconds(30), ct);
                 if (result.ExitCode != 0)
                 {
                     try { File.Copy(backupPath, filePath, true); } catch { }
@@ -148,14 +141,21 @@ namespace WpfApp1.Services
                         if (expected != actual)
                             mismatches.Add($"Keywords: expected '{expected}', got '{actual}'");
                     }
-                    if (patch.DateTaken != null && verified_meta.DateTaken != null)
+                    if (patch.DateTaken != null)
                     {
-                        if (DateTime.TryParse(patch.DateTaken, out var expectedDate))
+                        if (verified_meta.DateTaken == null)
+                        {
+                            mismatches.Add("DateTaken: expected value but got null");
+                        }
+                        else if (DateTime.TryParse(patch.DateTaken, out var expectedDate))
                         {
                             var diff = Math.Abs((verified_meta.DateTaken.Value - expectedDate).TotalSeconds);
                             if (diff > 2)
                                 mismatches.Add($"DateTaken: expected '{patch.DateTaken}', got '{verified_meta.DateTaken}'");
                         }
+                    }
+                    else if (patch.DateTaken == null && verified_meta.DateTaken != null)
+                    {
                     }
                 }
 
@@ -189,7 +189,7 @@ namespace WpfApp1.Services
         {
             if (_disposed) return;
             _disposed = true;
-            _session?.Dispose();
+            _runtime.RuntimeAvailable -= OnRuntimeAvailable;
             _cacheService.Dispose();
         }
     }

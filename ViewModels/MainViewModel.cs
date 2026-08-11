@@ -13,15 +13,17 @@ namespace WpfApp1.ViewModels
 {
     public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
+        private readonly ExifToolRuntimeService _exifToolRuntime;
         private readonly IMetadataService _metadataService;
         private readonly IFileOperationService _fileOperationService;
         private readonly ThemeManager _themeManager;
         private CancellationTokenSource? _metadataCts;
         private bool _disposed;
 
-        public MainViewModel()
+        public MainViewModel(ExifToolRuntimeService exifToolRuntime)
         {
-            _metadataService = new MetadataService();
+            _exifToolRuntime = exifToolRuntime;
+            _metadataService = new MetadataService(exifToolRuntime);
             _fileOperationService = new FileOperationService();
             _themeManager = new ThemeManager();
 
@@ -75,7 +77,7 @@ namespace WpfApp1.ViewModels
 
         public string CurrentTheme => _themeManager.CurrentTheme.ToString();
         public string ThemeButtonText => _themeManager.CurrentTheme == ThemeMode.Dark ? "Light Mode" : "Dark Mode";
-        public bool IsMetadataAvailable => _metadataService.ExifToolPath != null;
+        public bool IsMetadataAvailable => _exifToolRuntime.IsAvailable;
 
         public void RefreshMetadataAvailability()
         {
